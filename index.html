@@ -73,6 +73,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
   background:linear-gradient(130deg,#f5c518 0%,#00d9ff 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   cursor:default;display:inline-block;
+  user-select:none;-webkit-user-select:none;
 }
 .aluno-logo-sub{font-family:var(--fd);font-size:1rem;color:var(--text2);
   letter-spacing:.1em;margin-top:.5rem;text-transform:uppercase;}
@@ -87,11 +88,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
 
 /* Gatilho invisível no rodapé */
 .prof-trigger{
-  background:none;border:none;opacity:.08;font-size:.6rem;
-  color:var(--text3);cursor:pointer;padding:2px 6px;
+  background:none;border:none;opacity:.12;font-size:.75rem;
+  color:var(--text2);cursor:pointer;padding:6px 10px;
   transition:opacity .3s;position:relative;z-index:1;
+  border-radius:4px;
 }
-.prof-trigger:hover{opacity:.25;}
+.prof-trigger:hover{opacity:.4;background:rgba(255,255,255,.06);}
 
 /* ════════════════════════════════════════════════
    PAINEL DO PROFESSOR — oculto por padrão
@@ -544,7 +546,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
   <div class="aluno-logo-wrap">
     <div class="aluno-educ-tag">EDUC Games Educacional</div>
     <!-- Triple-click aqui ativa o login do professor -->
-    <div class="aluno-logo-title" id="logo-gatilho">QuizArena</div>
+    <div class="aluno-logo-title" id="logo-gatilho" onclick="profClick()">QuizArena</div>
     <div class="aluno-logo-sub">Sala de Quiz Competitivo</div>
   </div>
 
@@ -586,7 +588,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
       Quiz competitivo online • EDUC Games Educacional
     </div>
     <!-- ██ ÁREA DO PROFESSOR — Gatilho discreto ██ -->
-    <button class="prof-trigger" id="prof-trigger-btn" onclick="abrirLoginProf()" title="">⚙</button>
+    <button class="prof-trigger" id="prof-trigger-btn" onclick="abrirLoginProf()" title="Acesso restrito">⚙</button>
     <!-- ██ FIM Gatilho ██ -->
   </div>
 </div>
@@ -1086,27 +1088,17 @@ function logoutProf() {
   toast('🔐 Sessão do professor encerrada.');
 }
 
-/* Registrar triple-click na logo e no gatilho do rodapé */
-(function registrarGatilhos() {
-  // Executa direto — script está no fim do body, DOM já pronto
-  const logo = document.getElementById('logo-gatilho');
-  if (logo) {
-    // Evita seleção de texto no triplo-clique (desktop)
-    logo.style.userSelect = 'none';
-    logo.style.webkitUserSelect = 'none';
-    logo.addEventListener('mousedown', e => e.preventDefault());
+/* Acesso professor: profClick() é chamado via onclick no HTML
+   Mais confiável que addEventListener — funciona em todos os browsers */
+function profClick() {
+  profCliques++;
+  clearTimeout(profTimerClick);
+  profTimerClick = setTimeout(() => { profCliques = 0; }, 900);
+  if (profCliques >= 3) { profCliques = 0; abrirLoginProf(); }
+}
 
-    logo.addEventListener('click', e => {
-      e.preventDefault();
-      profCliques++;
-      clearTimeout(profTimerClick);
-      profTimerClick = setTimeout(() => { profCliques = 0; }, 900);
-      if (profCliques >= 3) { profCliques = 0; abrirLoginProf(); }
-    });
-  }
-  // Restaura sessão se professor já estava logado
-  if (sessionStorage.getItem(PROF_SESS_KEY) === '1') nav('menu');
-})();
+// Restaura sessão se professor já estava logado nesta aba
+if (sessionStorage.getItem(PROF_SESS_KEY) === '1') nav('menu');
 /* ██████  ÁREA DO PROFESSOR — JS — FIM  ██████ */
 
 /* ════════════════════════════════════════════
