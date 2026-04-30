@@ -73,7 +73,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
   background:linear-gradient(130deg,#f5c518 0%,#00d9ff 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   cursor:default;display:inline-block;
-  user-select:none;-webkit-user-select:none;
 }
 .aluno-logo-sub{font-family:var(--fd);font-size:1rem;color:var(--text2);
   letter-spacing:.1em;margin-top:.5rem;text-transform:uppercase;}
@@ -88,12 +87,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
 
 /* Gatilho invisível no rodapé */
 .prof-trigger{
-  background:none;border:none;opacity:.12;font-size:.75rem;
-  color:var(--text2);cursor:pointer;padding:6px 10px;
+  background:none;border:none;opacity:.08;font-size:.6rem;
+  color:var(--text3);cursor:pointer;padding:2px 6px;
   transition:opacity .3s;position:relative;z-index:1;
-  border-radius:4px;
 }
-.prof-trigger:hover{opacity:.4;background:rgba(255,255,255,.06);}
+.prof-trigger:hover{opacity:.25;}
 
 /* ════════════════════════════════════════════════
    PAINEL DO PROFESSOR — oculto por padrão
@@ -546,7 +544,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
   <div class="aluno-logo-wrap">
     <div class="aluno-educ-tag">EDUC Games Educacional</div>
     <!-- Triple-click aqui ativa o login do professor -->
-    <div class="aluno-logo-title" id="logo-gatilho" onclick="profClick()">QuizArena</div>
+    <div class="aluno-logo-title" id="logo-gatilho">QuizArena</div>
     <div class="aluno-logo-sub">Sala de Quiz Competitivo</div>
   </div>
 
@@ -556,16 +554,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
 
     <div class="fg">
       <label class="label">Seu nome / apelido</label>
-      <input type="text" class="input" id="aluno-nome" placeholder="Como aparecer na partida" autocomplete="off"
-        onkeydown="if(event.key==='Enter')document.getElementById('cod-entrada').focus()">
+      <input type="text" class="input" id="aluno-nome" placeholder="Como aparecer na partida" autocomplete="off">
     </div>
 
     <div class="fg">
       <label class="label">Código da Sala</label>
       <input type="text" class="input" id="cod-entrada" placeholder="Ex: QUIZ42" maxlength="6"
         style="text-transform:uppercase;font-family:var(--fd);font-size:2rem;letter-spacing:.2em;text-align:center"
-        autocomplete="off"
-        onkeydown="if(event.key==='Enter')entrarSala()">
+        autocomplete="off">
     </div>
 
     <div class="fg">
@@ -588,7 +584,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
       Quiz competitivo online • EDUC Games Educacional
     </div>
     <!-- ██ ÁREA DO PROFESSOR — Gatilho discreto ██ -->
-    <button class="prof-trigger" id="prof-trigger-btn" onclick="abrirLoginProf()" title="Acesso restrito">⚙</button>
+    <button class="prof-trigger" id="prof-trigger-btn" onclick="abrirLoginProf()" title="">⚙</button>
     <!-- ██ FIM Gatilho ██ -->
   </div>
 </div>
@@ -1088,17 +1084,23 @@ function logoutProf() {
   toast('🔐 Sessão do professor encerrada.');
 }
 
-/* Acesso professor: profClick() é chamado via onclick no HTML
-   Mais confiável que addEventListener — funciona em todos os browsers */
-function profClick() {
-  profCliques++;
-  clearTimeout(profTimerClick);
-  profTimerClick = setTimeout(() => { profCliques = 0; }, 900);
-  if (profCliques >= 3) { profCliques = 0; abrirLoginProf(); }
-}
-
-// Restaura sessão se professor já estava logado nesta aba
-if (sessionStorage.getItem(PROF_SESS_KEY) === '1') nav('menu');
+/* Registrar triple-click na logo e no gatilho do rodapé */
+(function registrarGatilhos() {
+  document.addEventListener('DOMContentLoaded', () => {
+    // Triple-click no logo "QuizArena"
+    const logo = document.getElementById('logo-gatilho');
+    if (logo) {
+      logo.addEventListener('click', () => {
+        profCliques++;
+        clearTimeout(profTimerClick);
+        profTimerClick = setTimeout(() => { profCliques = 0; }, 700);
+        if (profCliques >= 3) { profCliques = 0; abrirLoginProf(); }
+      });
+    }
+    // Restaura sessão se professor já estava logado
+    if (sessionStorage.getItem(PROF_SESS_KEY) === '1') nav('menu');
+  });
+})();
 /* ██████  ÁREA DO PROFESSOR — JS — FIM  ██████ */
 
 /* ════════════════════════════════════════════
@@ -1164,61 +1166,25 @@ function criarSala(){
   atualizarEspera();nav('espera');
 }
 function entrarSala(){
-  try {
-    const nome = document.getElementById('aluno-nome').value.trim();
-    const cod  = document.getElementById('cod-entrada').value.trim().toUpperCase();
-
-    // Validações com feedback visível
-    if(!nome){ toast('⚠️ Digite seu nome!'); document.getElementById('aluno-nome').focus(); return; }
-    if(!cod)  { toast('⚠️ Digite o código da sala!'); document.getElementById('cod-entrada').focus(); return; }
-
-    // Time — fallback seguro independente de pill
-    const tp   = getPill('pills-time') || '';
-    const time = tp.includes('Roxo') ? 'B' : tp.includes('Auto') ? (Math.random()>.5?'A':'B') : 'A';
-
-    G.nome = nome; G.cod = cod; G.prof = false; G.time = time;
-
-    // Feedback visual imediato no botão
-    const btn = document.querySelector('#screen-aluno .btn-gold');
-    if(btn){ btn.textContent = 'Conectando...'; btn.disabled = true; }
-    const restBtn = () => { if(btn){ btn.textContent = 'Entrar na Sala →'; btn.disabled = false; } };
-
-    if(db){
-      toast('🔄 Buscando sala...');
-      db.ref('salas/'+cod).once('value', snap => {
-        if(!snap.exists()){
-          toast('❌ Sala "'+cod+'" não encontrada!
-Cheque o código com o professor.');
-          restBtn(); return;
-        }
-        const s = snap.val();
-        G.disc = s.config?.disc || 'geral';
-        G.nq   = s.config?.nq  || 10;
-        G.tq   = s.config?.tq  || 20;
-        G.modo = s.config?.modo || 'Dupla vs Dupla';
-        G.questoes = prepQ(G.disc, G.nq);
-        db.ref('salas/'+cod+'/times/'+time+'/jogs').push(nome);
-        escutarSala(cod);
-        atualizarEspera();
-        restBtn();
-        nav('espera');
-      }, err => {
-        toast('❌ Erro Firebase: '+err.message);
-        console.error('Firebase erro entrarSala:', err);
-        restBtn();
-      });
-    } else {
-      // Demo offline
-      G.disc='geral'; G.nq=6; G.tq=15; G.modo='Dupla vs Dupla';
-      G.questoes = prepQ(G.disc, G.nq);
-      atualizarEspera(); restBtn(); nav('espera');
-      setTimeout(() => iniciarPartida(), 1600);
-    }
-  } catch(e) {
-    console.error('Erro em entrarSala():', e);
-    toast('❌ Erro inesperado: '+e.message);
-    const btn = document.querySelector('#screen-aluno .btn-gold');
-    if(btn){ btn.textContent = 'Entrar na Sala →'; btn.disabled = false; }
+  const nome=document.getElementById('aluno-nome').value.trim();
+  const cod=document.getElementById('cod-entrada').value.trim().toUpperCase();
+  const tp=getPill('pills-time');
+  if(!nome){toast('Digite seu nome!');return;}
+  if(!cod||cod.length<4){toast('Digite o código da sala!');return;}
+  G.nome=nome;G.cod=cod;G.prof=false;
+  G.time=tp.includes('Roxo')?'B':tp.includes('Auto')?(Math.random()>.5?'A':'B'):'A';
+  if(db){
+    db.ref('salas/'+cod).once('value',snap=>{
+      if(!snap.exists()){toast('Sala não encontrada!');return;}
+      const s=snap.val();G.disc=s.config.disc;G.nq=s.config.nq;G.tq=s.config.tq;G.modo=s.config.modo;
+      G.questoes=prepQ(G.disc,G.nq);
+      db.ref('salas/'+cod+'/times/'+G.time+'/jogs').push(nome);
+      escutarSala(cod);  // aluno escuta mudança de estado (inicio/fim)
+      atualizarEspera();nav('espera');
+    });
+  }else{
+    G.disc='geral';G.nq=6;G.tq=15;G.modo='Dupla vs Dupla';G.questoes=prepQ(G.disc,G.nq);
+    atualizarEspera();nav('espera');setTimeout(()=>iniciarPartida(),1600);
   }
 }
 function atualizarEspera(){
@@ -1404,11 +1370,12 @@ function confetes(){const c=document.getElementById('ccnv'),ctx=c.getContext('2d
 /* ════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════ */
-// Init direto — script no fim do body
-document.getElementById('cod-entrada')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
-document.getElementById('modal-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
-console.log('%cQuizArena — EDUC Games','font-size:15px;font-weight:bold;color:#f5c518;background:#07091a;padding:8px 16px;border-radius:4px');
-console.log('%cAcesso professor: triple-click no logo ou ⚙ no rodapé','color:#9298b0;padding:4px 16px');
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('cod-entrada')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+  document.getElementById('modal-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+  console.log('%cQuizArena — EDUC Games','font-size:15px;font-weight:bold;color:#f5c518;background:#07091a;padding:8px 16px;border-radius:4px');
+  console.log('%cAcesso professor: triple-click no logo ou ⚙ no rodapé','color:#9298b0;padding:4px 16px');
+});
 </script>
 </body>
 </html>
