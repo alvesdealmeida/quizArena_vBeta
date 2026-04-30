@@ -556,13 +556,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);
 
     <div class="fg">
       <label class="label">Seu nome / apelido</label>
-      <input type="text" class="input" id="aluno-nome" placeholder="Como aparecer na partida" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('cod-entrada').focus()"
+      <input type="text" class="input" id="aluno-nome" placeholder="Como aparecer na partida" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('cod-entrada').focus()" onkeydown="if(event.key==='Enter')document.getElementById('cod-entrada').focus()"
         onkeydown="if(event.key==='Enter')document.getElementById('cod-entrada').focus()">
     </div>
 
     <div class="fg">
       <label class="label">Código da Sala</label>
-      <input type="text" class="input" id="cod-entrada" placeholder="Ex: QUIZ42" maxlength="6" onkeydown="if(event.key==='Enter')entrarSala()"
+      <input type="text" class="input" id="cod-entrada" placeholder="Ex: QUIZ42" maxlength="6" onkeydown="if(event.key==='Enter')entrarSala()" onkeydown="if(event.key==='Enter')entrarSala()"
         style="text-transform:uppercase;font-family:var(--fd);font-size:2rem;letter-spacing:.2em;text-align:center"
         autocomplete="off"
         onkeydown="if(event.key==='Enter')entrarSala()">
@@ -1164,31 +1164,31 @@ function criarSala(){
   atualizarEspera();nav('espera');
 }
 function entrarSala(){
+  // Confirmação visual imediata que o botão foi clicado
+  const btn = document.querySelector('#screen-aluno .btn-gold');
+  if(btn && btn.disabled) return; // evita duplo clique
+  if(btn){ btn.textContent = 'Conectando...'; btn.disabled = true; }
+  const restBtn = () => { if(btn){ btn.textContent = 'Entrar na Sala →'; btn.disabled = false; } };
+
+  // Toast diagnóstico — confirma que a função foi chamada
+  toast('⏳ Verificando...');
+
   try {
     const nome = document.getElementById('aluno-nome').value.trim();
     const cod  = document.getElementById('cod-entrada').value.trim().toUpperCase();
-
-    // Validações com feedback visível
-    if(!nome){ toast('⚠️ Digite seu nome!'); document.getElementById('aluno-nome').focus(); return; }
-    if(!cod)  { toast('⚠️ Digite o código da sala!'); document.getElementById('cod-entrada').focus(); return; }
-
-    // Time — fallback seguro independente de pill
     const tp   = getPill('pills-time') || '';
     const time = tp.includes('Roxo') ? 'B' : tp.includes('Auto') ? (Math.random()>.5?'A':'B') : 'A';
 
+    if(!nome){ toast('⚠️ Digite seu nome!'); document.getElementById('aluno-nome').focus(); restBtn(); return; }
+    if(!cod){  toast('⚠️ Digite o código da sala!'); document.getElementById('cod-entrada').focus(); restBtn(); return; }
+
     G.nome = nome; G.cod = cod; G.prof = false; G.time = time;
 
-    // Feedback visual imediato no botão
-    const btn = document.querySelector('#screen-aluno .btn-gold');
-    if(btn){ btn.textContent = 'Conectando...'; btn.disabled = true; }
-    const restBtn = () => { if(btn){ btn.textContent = 'Entrar na Sala →'; btn.disabled = false; } };
-
     if(db){
-      toast('🔄 Buscando sala...');
+      toast('🔄 Buscando sala "'+cod+'"...');
       db.ref('salas/'+cod).once('value', snap => {
         if(!snap.exists()){
-          toast('❌ Sala "'+cod+'" não encontrada!
-Cheque o código com o professor.');
+          toast('❌ Sala "'+cod+'" não encontrada. Verifique o código.');
           restBtn(); return;
         }
         const s = snap.val();
@@ -1203,22 +1203,20 @@ Cheque o código com o professor.');
         restBtn();
         nav('espera');
       }, err => {
-        toast('❌ Erro Firebase: '+err.message);
-        console.error('Firebase erro entrarSala:', err);
+        toast('❌ Erro de conexão: '+err.message);
+        console.error('[QuizArena] Firebase entrarSala:', err);
         restBtn();
       });
     } else {
-      // Demo offline
       G.disc='geral'; G.nq=6; G.tq=15; G.modo='Dupla vs Dupla';
       G.questoes = prepQ(G.disc, G.nq);
       atualizarEspera(); restBtn(); nav('espera');
       setTimeout(() => iniciarPartida(), 1600);
     }
   } catch(e) {
-    console.error('Erro em entrarSala():', e);
-    toast('❌ Erro inesperado: '+e.message);
-    const btn = document.querySelector('#screen-aluno .btn-gold');
-    if(btn){ btn.textContent = 'Entrar na Sala →'; btn.disabled = false; }
+    console.error('[QuizArena] entrarSala erro:', e);
+    toast('❌ Erro: '+e.message);
+    restBtn();
   }
 }
 function atualizarEspera(){
