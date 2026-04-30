@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuizArena • EDUC Games</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  QuizArena — EDUC Games Educacional                         ║
+  ║  Prof. Sebastião Alves de Almeida — Araruama/RJ            ║
+  ║                                                              ║
+  ║  ACESSO PROFESSOR: triple-click no logo "QuizArena"        ║
+  ║  ou no ⚙ discreto no rodapé da tela do aluno              ║
+  ║                                                              ║
+  ║  FIREBASE: descomente os 2 scripts e preencha FB_CONFIG    ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+<!-- Firebase SDK — compat (necessário para o código de salas funcionar) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN SYSTEM — QuizArena
+   Tema: Arena Competitiva / Esports Educacional
+═══════════════════════════════════════════════ */
+:root{
+  --bg:#07091a;--bg2:#0d1028;--bg3:#131730;--bg4:#1a1f40;
+  --gold:#f5c518;--gold2:#e8b015;
+  --cyan:#00d9ff;--green:#00e676;--red:#ff3d5a;
+  --purple:#a855f7;--orange:#ff7c2a;
+  --text:#e8eaf0;--text2:#9298b0;--text3:#5a6080;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --r:12px;--rl:16px;
+  --fd:'Barlow Condensed',sans-serif;--fb:'Barlow',sans-serif;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--fb);
+  min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh;flex-direction:column;overflow-y:auto;}
+.screen.active{display:flex;}
+
+/* ════════════════════════════════════════════════
+   TELA DO ALUNO (padrão — sempre visível)
+════════════════════════════════════════════════ */
+#screen-aluno{
+  align-items:center;justify-content:center;
+  padding:2rem 1.5rem 3rem;position:relative;overflow:hidden;
+}
+.ag{position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 40%,rgba(168,85,247,.13) 0%,transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 25%,rgba(0,217,255,.10) 0%,transparent 70%),
+    radial-gradient(ellipse 50% 40% at 50% 85%,rgba(245,197,24,.09) 0%,transparent 60%);}
+.agrid{position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:44px 44px;}
+
+/* Logo do aluno */
+.aluno-logo-wrap{text-align:center;margin-bottom:2.25rem;position:relative;z-index:1;user-select:none;}
+.aluno-educ-tag{display:inline-block;background:var(--gold);color:#07091a;font-family:var(--fd);
+  font-weight:800;font-size:.68rem;letter-spacing:.18em;padding:3px 12px;border-radius:4px;
+  text-transform:uppercase;margin-bottom:.875rem;}
+/* O triple-click é aplicado em .aluno-logo-title via JS */
+.aluno-logo-title{
+  font-family:var(--fd);font-weight:800;font-size:clamp(3rem,9vw,5.5rem);line-height:1;
+  letter-spacing:-.02em;
+  background:linear-gradient(130deg,#f5c518 0%,#00d9ff 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  cursor:default;display:inline-block;
+}
+.aluno-logo-sub{font-family:var(--fd);font-size:1rem;color:var(--text2);
+  letter-spacing:.1em;margin-top:.5rem;text-transform:uppercase;}
+
+/* Card de entrada */
+.aluno-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:2rem 1.875rem;width:100%;max-width:420px;position:relative;z-index:1;
+}
+.aluno-card h2{font-family:var(--fd);font-size:1.75rem;font-weight:800;margin-bottom:.25rem;}
+.aluno-card .sub{color:var(--text2);font-size:.88rem;margin-bottom:1.75rem;}
+
+/* Gatilho invisível no rodapé */
+.prof-trigger{
+  background:none;border:none;opacity:.08;font-size:.6rem;
+  color:var(--text3);cursor:pointer;padding:2px 6px;
+  transition:opacity .3s;position:relative;z-index:1;
+}
+.prof-trigger:hover{opacity:.25;}
+
+/* ════════════════════════════════════════════════
+   PAINEL DO PROFESSOR — oculto por padrão
+   Aparece após triple-click + senha correta
+════════════════════════════════════════════════ */
+#screen-menu{
+  align-items:center;justify-content:center;
+  padding:2rem 1.5rem 3rem;position:relative;overflow:hidden;
+}
+.logo-wrap{text-align:center;margin-bottom:2.5rem;position:relative;z-index:1;}
+.logo-educ{display:inline-block;background:var(--gold);color:#07091a;font-family:var(--fd);
+  font-weight:800;font-size:.68rem;letter-spacing:.18em;padding:3px 12px;border-radius:4px;
+  text-transform:uppercase;margin-bottom:.875rem;}
+.logo-main{font-family:var(--fd);font-weight:800;font-size:clamp(3rem,8vw,5rem);line-height:1;
+  letter-spacing:-.02em;background:linear-gradient(130deg,#f5c518 0%,#00d9ff 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo-sub{font-family:var(--fd);font-size:1.1rem;color:var(--text2);letter-spacing:.1em;
+  margin-top:.5rem;text-transform:uppercase;}
+.logo-prof-tag{display:inline-flex;align-items:center;gap:.375rem;font-size:.68rem;font-weight:700;
+  letter-spacing:.08em;padding:3px 12px;border-radius:20px;text-transform:uppercase;margin-top:.75rem;
+  background:rgba(255,61,90,.12);color:var(--red);border:1px solid rgba(255,61,90,.3);}
+
+.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;max-width:880px;
+  width:100%;position:relative;z-index:1;}
+.mc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:1.375rem 1.25rem;cursor:pointer;transition:border-color .2s,background .2s,transform .15s;
+  position:relative;overflow:hidden;}
+.mc:hover{border-color:rgba(245,197,24,.4);transform:translateY(-2px);background:var(--bg3);}
+.mc:active{transform:translateY(0);}
+.mc.gb{border-color:rgba(245,197,24,.35);}
+.mc.gb::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--gold),var(--cyan));}
+.mc.cb::before{background:linear-gradient(90deg,var(--cyan),var(--purple));}
+.mc.pb::before{background:linear-gradient(90deg,var(--purple),#e055f0);}
+.mc.full{grid-column:1/-1;}
+.mc-icon{font-size:1.75rem;margin-bottom:.6rem;display:block;}
+.mc h3{font-family:var(--fd);font-size:1.1rem;font-weight:700;margin-bottom:.2rem;}
+.mc p{font-size:.76rem;color:var(--text2);line-height:1.45;}
+.pt{position:absolute;top:.75rem;right:.75rem;font-size:.6rem;font-weight:700;
+  letter-spacing:.06em;padding:2px 8px;border-radius:20px;text-transform:uppercase;}
+.pt1{background:rgba(0,230,118,.14);color:var(--green);}
+.pt2{background:rgba(0,217,255,.14);color:var(--cyan);}
+.pt3{background:rgba(168,85,247,.14);color:var(--purple);}
+.prof-logout-bar{
+  position:relative;z-index:1;margin-top:1.5rem;
+  display:flex;align-items:center;justify-content:center;gap:1rem;
+}
+
+/* ════════════════════════════════════════════════
+   MODAL DE LOGIN DO PROFESSOR
+   (idêntico ao padrão do menu EDUC)
+════════════════════════════════════════════════ */
+/* ██████████████████████████████████████████████
+   ÁREA DO PROFESSOR — CSS — INÍCIO
+   Não modificar este bloco sem autorização.
+   Corresponde ao #modal-prof-login.
+   ██████████████████████████████████████████████ */
+#modal-prof-login{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.9);backdrop-filter:blur(12px);
+  z-index:30000;align-items:center;justify-content:center;
+}
+#modal-prof-login.open{display:flex;}
+.prof-login-box{
+  background:var(--bg2);border-radius:20px;max-width:360px;width:92%;
+  padding:32px 28px 24px;box-shadow:0 24px 64px rgba(0,0,0,.6);
+  border-top:5px solid var(--gold);position:relative;
+  animation:pl-pop .3s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes pl-pop{from{transform:scale(.82);opacity:0}to{transform:scale(1);opacity:1}}
+.prof-login-box h2{
+  font-family:var(--fd);font-size:1.5rem;font-weight:800;color:var(--text);
+  margin-bottom:.25rem;text-align:center;
+}
+.prof-login-box>.sub{
+  font-size:.82rem;color:var(--text2);text-align:center;margin-bottom:1.5rem;line-height:1.5;
+}
+.pl-row{display:flex;gap:.625rem;margin-bottom:.625rem;}
+.pl-input{
+  flex:1;background:rgba(255,255,255,.06);border:2px solid var(--border);
+  border-radius:10px;color:var(--text);font-family:var(--fb);
+  font-size:1rem;font-weight:600;padding:.75rem 1rem;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.pl-input:focus{border-color:rgba(245,197,24,.6);box-shadow:0 0 0 3px rgba(245,197,24,.1);}
+.pl-input.err{border-color:var(--red);animation:pl-shake .35s ease;}
+@keyframes pl-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.pl-btn{
+  background:var(--gold);color:#07091a;border:none;border-radius:10px;
+  font-family:var(--fd);font-size:.88rem;font-weight:800;
+  padding:.75rem 1.125rem;cursor:pointer;white-space:nowrap;
+  transition:background .15s,transform .15s;letter-spacing:.04em;
+}
+.pl-btn:hover{background:var(--gold2);}
+.pl-btn:active{transform:scale(.96);}
+.pl-feedback{font-size:.75rem;font-weight:700;min-height:18px;text-align:center;margin-top:.25rem;}
+.pl-feedback.err{color:var(--red);}
+.pl-close{
+  position:absolute;top:14px;right:16px;background:rgba(255,255,255,.08);
+  border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;color:var(--text2);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;
+}
+.pl-close:hover{background:rgba(255,255,255,.16);}
+/* ██████████████████████████████████████████████
+   ÁREA DO PROFESSOR — CSS — FIM
+   ██████████████████████████████████████████████ */
+
+/* ════════════════════════════════════════════════
+   INPUTS / BOTÕES COMPARTILHADOS
+════════════════════════════════════════════════ */
+.input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:8px;padding:.875rem 1rem;color:var(--text);font-family:var(--fb);
+  font-size:1rem;outline:none;transition:border-color .2s;}
+.input:focus{border-color:rgba(245,197,24,.55);}
+.input::placeholder{color:var(--text3);}
+.select{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:8px;padding:.875rem 2.5rem .875rem 1rem;color:var(--text);font-family:var(--fb);
+  font-size:1rem;outline:none;cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239298b0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 1rem center;transition:border-color .2s;}
+.select:focus{border-color:rgba(245,197,24,.55);}
+.select option{background:#0d1028;}
+.btn{padding:.875rem 1.75rem;border-radius:8px;font-family:var(--fd);font-weight:700;
+  font-size:1rem;letter-spacing:.05em;cursor:pointer;border:none;transition:all .15s;
+  text-transform:uppercase;white-space:nowrap;}
+.btn:active{transform:scale(.97);}
+.btn-gold{background:var(--gold);color:#07091a;}
+.btn-gold:hover{background:var(--gold2);}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{background:rgba(255,255,255,.11);}
+.btn-cyan{background:var(--cyan);color:#07091a;}
+.btn-cyan:hover{background:#00c4e8;}
+.btn-purple{background:var(--purple);color:#fff;}
+.btn-red{background:rgba(255,61,90,.14);color:var(--red);border:1px solid rgba(255,61,90,.3);}
+.btn-full{width:100%;}
+.btn-sm{padding:.5rem 1rem;font-size:.82rem;}
+.btn-lg{padding:1rem 2.25rem;font-size:1.15rem;}
+.label{display:block;font-size:.72rem;font-weight:600;letter-spacing:.06em;
+  color:var(--text2);text-transform:uppercase;margin-bottom:.45rem;}
+.fg{margin-bottom:1.2rem;}
+.fg2{display:grid;gap:.75rem;grid-template-columns:1fr 1fr;}
+.pills{display:flex;gap:.5rem;flex-wrap:wrap;}
+.pill{padding:.45rem 1rem;border-radius:20px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--text2);font-size:.82rem;cursor:pointer;
+  transition:all .15s;white-space:nowrap;}
+.pill.on{background:rgba(245,197,24,.14);border-color:rgba(245,197,24,.5);color:var(--gold);}
+.pb-badge{display:inline-flex;align-items:center;gap:.375rem;font-size:.65rem;font-weight:700;
+  letter-spacing:.06em;padding:3px 10px;border-radius:20px;text-transform:uppercase;margin-bottom:1rem;}
+.pb1{background:rgba(0,230,118,.12);color:var(--green);border:1px solid rgba(0,230,118,.2);}
+.pb2{background:rgba(0,217,255,.12);color:var(--cyan);border:1px solid rgba(0,217,255,.2);}
+.pb3{background:rgba(168,85,247,.12);color:var(--purple);border:1px solid rgba(168,85,247,.2);}
+
+/* FORM SCREENS */
+.fs{align-items:center;justify-content:center;padding:2rem 1.5rem;background:var(--bg);}
+.fcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:1.875rem;width:100%;max-width:500px;}
+.fcard h2{font-family:var(--fd);font-size:2rem;font-weight:800;margin-bottom:.25rem;}
+.fcard .sub{color:var(--text2);font-size:.88rem;margin-bottom:1.75rem;}
+.factions{display:flex;gap:.75rem;margin-top:1.5rem;}
+
+/* SALA DE ESPERA */
+#screen-espera{background:var(--bg);align-items:center;padding:2rem 1.5rem 3rem;}
+.espera-top{text-align:center;margin-top:1.5rem;margin-bottom:2rem;}
+.cod-disp{font-family:var(--fd);font-size:clamp(2.5rem,8vw,4rem);font-weight:800;
+  letter-spacing:.22em;color:var(--gold);background:rgba(245,197,24,.07);
+  border:2px dashed rgba(245,197,24,.35);border-radius:var(--r);
+  padding:.5rem 1.75rem;margin-bottom:.5rem;display:inline-block;}
+.arena-times{display:grid;grid-template-columns:1fr 56px 1fr;gap:.875rem;
+  width:100%;max-width:820px;align-items:start;}
+.tcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;}
+.tcard.ta{border-top:3px solid var(--cyan);}
+.tcard.tb{border-top:3px solid var(--purple);}
+.tcard h3{font-family:var(--fd);font-size:.95rem;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:.875rem;}
+.ta h3{color:var(--cyan);}.tb h3{color:var(--purple);}
+.jrow{display:flex;align-items:center;gap:.625rem;padding:.45rem 0;border-bottom:1px solid var(--border);}
+.jrow:last-child{border-bottom:none;}
+.jav{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;font-family:var(--fd);font-weight:700;font-size:.8rem;}
+.ta .jav{background:rgba(0,217,255,.18);color:var(--cyan);}
+.tb .jav{background:rgba(168,85,247,.18);color:var(--purple);}
+.jnome{font-size:.88rem;font-weight:500;}
+.jdot{width:8px;height:8px;border-radius:50%;background:var(--green);
+  margin-left:auto;flex-shrink:0;animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.vs-mid{display:flex;align-items:center;justify-content:center;padding-top:.75rem;
+  font-family:var(--fd);font-weight:800;font-size:2rem;color:var(--gold);}
+.cfg-strip{margin-top:1.5rem;background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r);padding:.875rem 1.25rem;display:flex;gap:1.5rem;
+  flex-wrap:wrap;font-size:.88rem;color:var(--text2);}
+.cfg-strip strong{color:var(--text);}
+.espera-actions{margin-top:2rem;display:flex;gap:1rem;justify-content:center;}
+
+/* CONTAGEM */
+#screen-contagem{background:var(--bg);align-items:center;justify-content:center;}
+.cnt-num{font-family:var(--fd);font-size:clamp(8rem,20vw,14rem);font-weight:800;
+  color:var(--gold);line-height:1;animation:cnt-in 1s ease-in-out;}
+@keyframes cnt-in{0%{transform:scale(1.6);opacity:0}60%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.8}}
+
+/* JOGO */
+#screen-jogo{background:var(--bg);align-items:center;}
+.jogo-inner{max-width:860px;width:100%;padding:1.5rem;flex:1;display:flex;flex-direction:column;}
+.jhdr{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;}
+.prog-lbl{font-size:.72rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;}
+.prog-num{font-family:var(--fd);font-weight:800;font-size:1.6rem;line-height:1;}
+.twrap{position:relative;width:66px;height:66px;flex-shrink:0;}
+.twrap svg{width:66px;height:66px;transform:rotate(-90deg);}
+.tbg{fill:none;stroke:rgba(255,255,255,.1);stroke-width:4;}
+.tfg{fill:none;stroke:var(--gold);stroke-width:4;stroke-linecap:round;
+  stroke-dasharray:170;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .3s;}
+.tfg.urg{stroke:var(--red);}
+.tnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--fd);font-weight:800;font-size:1.35rem;}
+.scores{display:flex;gap:.75rem;}
+.sb{display:flex;flex-direction:column;align-items:center;background:var(--bg2);
+  border:1px solid var(--border);border-radius:8px;padding:.375rem .75rem;min-width:76px;}
+.sb .stn{font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.sb .spt{font-family:var(--fd);font-weight:800;font-size:1.5rem;line-height:1.1;}
+.sb.sa{border-top:2px solid var(--cyan);}.sb.sb2{border-top:2px solid var(--purple);}
+.sb.sa .stn{color:var(--cyan);}.sb.sb2 .stn{color:var(--purple);}
+.qbox{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.625rem 1.75rem;margin-bottom:1.125rem;}
+.qdisc{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:.625rem;}
+.qtxt{font-size:1.25rem;font-weight:500;line-height:1.55;}
+.opcoes{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+.opc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:1rem 1.125rem;color:var(--text);font-family:var(--fb);font-size:.96rem;
+  cursor:pointer;text-align:left;transition:all .15s;display:flex;align-items:center;gap:.75rem;}
+.opc:hover{border-color:rgba(245,197,24,.45);background:rgba(245,197,24,.06);}
+.ol{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--fd);font-weight:700;font-size:.88rem;flex-shrink:0;}
+.opc.ok{border-color:var(--green);background:rgba(0,230,118,.10);}
+.opc.err{border-color:var(--red);background:rgba(255,61,90,.08);opacity:.75;}
+.opc.off{pointer-events:none;}
+.jfoot{display:flex;align-items:center;justify-content:space-between;
+  margin-top:1rem;font-size:.85rem;color:var(--text2);}
+.combo-v{color:var(--gold);font-weight:700;}
+
+/* FEEDBACK */
+.fb-ov{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;
+  align-items:center;justify-content:center;background:rgba(7,9,26,.74);backdrop-filter:blur(5px);}
+.fb-ban{font-family:var(--fd);font-size:clamp(3rem,10vw,5.5rem);font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;animation:fbpop .5s cubic-bezier(.34,1.56,.64,1) both;}
+.fb-ban.ok{color:var(--green);}.fb-ban.er{color:var(--red);}
+.fb-pts{font-family:var(--fd);font-size:2rem;font-weight:700;color:var(--gold);
+  animation:fbpop .5s cubic-bezier(.34,1.56,.64,1) .1s both;}
+.fb-sub{font-family:var(--fd);font-size:1.2rem;color:var(--text2);margin-top:.25rem;
+  animation:fbpop .5s cubic-bezier(.34,1.56,.64,1) .18s both;}
+@keyframes fbpop{0%{transform:scale(0) rotate(-6deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+
+/* PLACAR PARCIAL */
+#screen-placar{background:var(--bg);align-items:center;justify-content:center;padding:2rem;}
+.pl-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);
+  padding:2rem;width:100%;max-width:520px;text-align:center;}
+.pl-tit{font-size:.8rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);margin-bottom:.25rem;}
+.pl-rod{font-family:var(--fd);font-size:1.5rem;font-weight:800;margin-bottom:2rem;}
+.pl-row{display:flex;align-items:center;gap:1rem;justify-content:center;margin-bottom:2rem;}
+.pl-time{flex:1;background:var(--bg3);border-radius:var(--r);padding:1.375rem 1rem;}
+.pl-tnome{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.5rem;}
+.pl-pts{font-family:var(--fd);font-size:3rem;font-weight:800;line-height:1;}
+.pl-ac{font-size:.78rem;color:var(--text2);margin-top:.3rem;}
+.pl-time.lead{position:relative;}
+.pl-time.lead::after{content:'👑';position:absolute;top:-1.1rem;left:50%;transform:translateX(-50%);font-size:1.4rem;}
+.pl-vs{font-family:var(--fd);font-weight:800;font-size:1.5rem;color:var(--text3);}
+.nxt-bar{display:flex;align-items:center;gap:.875rem;background:var(--bg3);
+  border-radius:8px;padding:.875rem 1rem;font-size:.88rem;color:var(--text2);}
+.nxt-prog{flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;}
+.nxt-fill{height:100%;background:var(--gold);border-radius:2px;width:0%;}
+.nxt-cnt{font-family:var(--fd);font-weight:700;color:var(--gold);min-width:26px;text-align:right;}
+
+/* RESULTADO */
+#screen-resultado{background:var(--bg);align-items:center;padding:3rem 2rem;position:relative;overflow:hidden;}
+.res-wrap{position:relative;z-index:1;text-align:center;max-width:680px;width:100%;margin:0 auto;}
+.res-camp-lbl{font-family:var(--fd);font-size:.88rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:.35rem;}
+.res-camp-nm{font-family:var(--fd);font-size:clamp(2.5rem,7vw,4rem);font-weight:800;line-height:1;margin-bottom:.5rem;}
+.res-camp-pt{font-family:var(--fd);font-size:1.5rem;color:var(--text2);margin-bottom:2.5rem;}
+.podio{display:flex;align-items:flex-end;justify-content:center;gap:.75rem;margin-bottom:2.5rem;}
+.pi{display:flex;flex-direction:column;align-items:center;gap:.45rem;}
+.pav{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-family:var(--fd);font-weight:800;font-size:1.2rem;}
+.p1 .pav{background:rgba(245,197,24,.22);border:2px solid var(--gold);color:var(--gold);}
+.p2 .pav{background:rgba(192,192,192,.14);color:#c0c0c0;}
+.pnm{font-family:var(--fd);font-size:.82rem;font-weight:600;}
+.ppt{font-family:var(--fd);font-size:.95rem;font-weight:700;color:var(--gold);}
+.pblk{border-radius:6px 6px 0 0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--fd);font-weight:800;font-size:1.5rem;}
+.p1 .pblk{width:100px;height:100px;background:rgba(245,197,24,.13);border:1px solid rgba(245,197,24,.28);color:var(--gold);}
+.p2 .pblk{width:82px;height:70px;background:rgba(192,192,192,.07);border:1px solid rgba(192,192,192,.2);color:#c0c0c0;}
+.res-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;margin-bottom:2rem;text-align:center;}
+.rs-lbl{font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem;}
+.rs-val{font-family:var(--fd);font-size:2rem;font-weight:800;}
+.res-actions{display:flex;gap:.875rem;justify-content:center;flex-wrap:wrap;}
+
+/* RELATÓRIO */
+#screen-relatorio{background:var(--bg);padding:1.5rem;flex-direction:column;}
+.rel-wrap{max-width:860px;margin:0 auto;width:100%;padding-top:3.5rem;}
+.rel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;}
+.rel-head h2{font-family:var(--fd);font-size:2rem;font-weight:800;}
+.rel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.5rem;}
+.rel-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.125rem;text-align:center;}
+.rel-stat .rv{font-family:var(--fd);font-size:2rem;font-weight:800;}
+.rel-stat .rl{font-size:.72rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-top:.25rem;}
+.rel-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+.rel-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;}
+.rel-card h4{font-family:var(--fd);font-size:.85rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text2);margin-bottom:1rem;}
+.q-row-rel{display:flex;align-items:center;gap:.75rem;padding:.5rem 0;
+  border-bottom:1px solid var(--border);font-size:.85rem;}
+.q-row-rel:last-child{border-bottom:none;}
+.q-idx{font-family:var(--fd);font-weight:700;min-width:24px;color:var(--text2);}
+.q-txt-rel{flex:1;color:var(--text);}
+.q-ok{font-family:var(--fd);font-weight:700;font-size:.9rem;}
+.q-ok.g{color:var(--green);}.q-ok.r{color:var(--red);}
+
+/* BANCO */
+#screen-banco{background:var(--bg);padding:1.5rem;flex-direction:column;}
+.banco-wrap{max-width:900px;margin:0 auto;width:100%;padding-top:3.5rem;}
+.banco-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;}
+.banco-header h2{font-family:var(--fd);font-size:2rem;font-weight:800;}
+.banco-filtros{display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;}
+.qitem{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);
+  padding:.875rem 1.125rem;margin-bottom:.625rem;display:flex;align-items:center;gap:.875rem;}
+.qi-disc{min-width:52px;font-size:.65rem;font-weight:700;letter-spacing:.05em;
+  background:rgba(245,197,24,.1);color:var(--gold);border-radius:4px;padding:2px 8px;
+  text-align:center;text-transform:uppercase;}
+.qi-txt{flex:1;font-size:.88rem;}
+.qi-serie{font-size:.75rem;color:var(--text2);min-width:50px;text-align:center;}
+.qi-actions{display:flex;gap:.5rem;}
+.qi-btn{padding:.35rem .7rem;border-radius:6px;font-size:.75rem;font-family:var(--fd);
+  font-weight:700;cursor:pointer;border:none;transition:all .15s;}
+.qi-edit{background:rgba(0,217,255,.14);color:var(--cyan);}
+.qi-del{background:rgba(255,61,90,.12);color:var(--red);}
+
+/* MODAL EDITOR QUESTÃO */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);
+  z-index:500;display:none;align-items:center;justify-content:center;padding:1.5rem;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);
+  padding:2rem;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;}
+.modal h3{font-family:var(--fd);font-size:1.5rem;font-weight:800;margin-bottom:1.5rem;}
+.opc-editor{display:grid;grid-template-columns:32px 1fr;gap:.5rem;align-items:center;margin-bottom:.625rem;}
+.opc-letra-btn{width:32px;height:32px;border-radius:50%;border:2px solid var(--border2);
+  background:transparent;color:var(--text2);font-family:var(--fd);font-weight:700;
+  font-size:.9rem;cursor:pointer;transition:all .15s;}
+.opc-letra-btn.correta{border-color:var(--green);background:rgba(0,230,118,.2);color:var(--green);}
+.modal-actions{display:flex;gap:.75rem;margin-top:1.5rem;}
+
+/* TORNEIO */
+#screen-torneio{background:var(--bg);padding:1.5rem;flex-direction:column;}
+.torneio-wrap{max-width:1000px;margin:0 auto;width:100%;padding-top:3.5rem;}
+.torneio-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;}
+.torneio-header h2{font-family:var(--fd);font-size:2rem;font-weight:800;}
+.bracket{display:flex;gap:2rem;overflow-x:auto;padding:1rem 0;}
+.bracket-col{display:flex;flex-direction:column;gap:1rem;min-width:200px;}
+.bracket-col-lbl{font-family:var(--fd);font-size:.8rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text2);margin-bottom:.5rem;text-align:center;}
+.duelo{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.duelo-time{display:flex;align-items:center;justify-content:space-between;
+  padding:.625rem 1rem;border-bottom:1px solid var(--border);font-size:.9rem;}
+.duelo-time:last-child{border-bottom:none;}
+.duelo-time.win{background:rgba(245,197,24,.08);font-weight:600;color:var(--gold);}
+.duelo-time.lose{opacity:.5;}
+.duelo-pts{font-family:var(--fd);font-weight:700;font-size:1.1rem;color:var(--text2);}
+.duelo.live{border-color:rgba(255,61,90,.5);}
+.duelo.live::before{content:'🔴 AO VIVO';display:block;background:rgba(255,61,90,.15);
+  color:var(--red);font-size:.65rem;font-weight:700;letter-spacing:.1em;padding:3px 10px;text-align:center;}
+
+/* RANKING */
+#screen-ranking{background:var(--bg);padding:1.5rem;flex-direction:column;}
+.ranking-table{width:100%;border-collapse:collapse;}
+.ranking-table th{font-family:var(--fd);font-size:.78rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text2);padding:.625rem 1rem;text-align:left;border-bottom:2px solid var(--border2);}
+.ranking-table td{padding:.75rem 1rem;border-bottom:1px solid var(--border);font-size:.9rem;}
+.ranking-table tr:last-child td{border-bottom:none;}
+.ranking-table tr:hover td{background:rgba(255,255,255,.03);}
+.pos{font-family:var(--fd);font-weight:800;font-size:1.1rem;min-width:36px;}
+.pos.gold{color:var(--gold);}.pos.prata{color:#c0c0c0;}.pos.bronze{color:#cd7f32;}
+.escola-nm{font-weight:600;}.escola-cidade{font-size:.78rem;color:var(--text2);}
+.pts-col{font-family:var(--fd);font-weight:800;font-size:1.1rem;color:var(--gold);}
+.win-col{color:var(--green);font-weight:600;}.lose-col{color:var(--red);font-weight:600;}
+.bar-mini{width:80px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;}
+.bar-mini-fill{height:100%;background:var(--gold);border-radius:3px;}
+
+/* PAINEL PROFESSOR */
+#screen-painel-prof{background:var(--bg);padding:1.5rem;flex-direction:column;}
+.prof-hdr{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.25rem;
+  margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;}
+.prof-title{font-family:var(--fd);font-size:1.25rem;font-weight:800;}
+.prof-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;}
+.pcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;}
+.pcard h4{font-family:var(--fd);font-size:.8rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text2);margin-bottom:.875rem;}
+.pstat{display:flex;justify-content:space-between;align-items:center;
+  padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.88rem;}
+.pstat:last-child{border-bottom:none;}
+.pstat-v{font-family:var(--fd);font-weight:700;font-size:1.1rem;}
+.feed-item{display:flex;align-items:center;gap:.75rem;padding:.5rem 0;
+  border-bottom:1px solid var(--border);font-size:.85rem;animation:feed-in .3s ease;}
+.feed-item:last-child{border-bottom:none;}
+@keyframes feed-in{from{transform:translateX(-8px);opacity:0}to{transform:translateX(0);opacity:1}}
+.feed-ok{color:var(--green);}.feed-er{color:var(--red);}
+.resp-vivo{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;}
+.resp-opc{display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;background:var(--bg3);border-radius:8px;font-size:.85rem;}
+.resp-bar{flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;}
+.resp-bar-f{height:100%;border-radius:3px;background:var(--cyan);}
+
+/* BACK BTN */
+.back{position:fixed;top:1rem;left:1rem;background:rgba(255,255,255,.06);
+  border:1px solid var(--border);border-radius:8px;padding:.45rem 1rem;color:var(--text2);
+  font-family:var(--fd);font-size:.85rem;cursor:pointer;z-index:50;transition:all .15s;}
+.back:hover{color:var(--text);background:rgba(255,255,255,.11);}
+
+/* TOAST */
+.toast{position:fixed;top:1.25rem;right:1.25rem;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:8px;padding:.75rem 1.125rem;font-size:.88rem;z-index:1000;
+  animation:t-in .3s ease;max-width:300px;box-shadow:0 4px 24px rgba(0,0,0,.4);}
+@keyframes t-in{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* RESPONSIVE */
+@media(max-width:720px){
+  .menu-grid{grid-template-columns:repeat(2,1fr);}
+  .mc.full{grid-column:1/-1;}
+  .opcoes{grid-template-columns:1fr;}
+  .arena-times{grid-template-columns:1fr;}
+  .vs-mid{display:none;}
+  .prof-grid{grid-template-columns:1fr;}
+  .rel-grid{grid-template-columns:repeat(2,1fr);}
+  .rel-row{grid-template-columns:1fr;}
+  .fg2{grid-template-columns:1fr;}
+}
+@media(max-width:480px){
+  .menu-grid{grid-template-columns:1fr;}
+  .scores{gap:.5rem;}.sb{min-width:62px;}
+  .aluno-card{padding:1.5rem 1.25rem;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     TELA DO ALUNO — visível por padrão para todos
+     ══════════════════════════════════════════════ -->
+<div id="screen-aluno" class="screen active">
+  <div class="ag"></div><div class="agrid"></div>
+
+  <div class="aluno-logo-wrap">
+    <div class="aluno-educ-tag">EDUC Games Educacional</div>
+    <!-- Triple-click aqui ativa o login do professor -->
+    <div class="aluno-logo-title" id="logo-gatilho">QuizArena</div>
+    <div class="aluno-logo-sub">Sala de Quiz Competitivo</div>
+  </div>
+
+  <div class="aluno-card">
+    <h2>Entrar na Sala</h2>
+    <p class="sub">Digite seu nome e o código fornecido pelo professor</p>
+
+    <div class="fg">
+      <label class="label">Seu nome / apelido</label>
+      <input type="text" class="input" id="aluno-nome" placeholder="Como aparecer na partida" autocomplete="off">
+    </div>
+
+    <div class="fg">
+      <label class="label">Código da Sala</label>
+      <input type="text" class="input" id="cod-entrada" placeholder="Ex: QUIZ42" maxlength="6"
+        style="text-transform:uppercase;font-family:var(--fd);font-size:2rem;letter-spacing:.2em;text-align:center"
+        autocomplete="off">
+    </div>
+
+    <div class="fg">
+      <label class="label">Escolher Time</label>
+      <div class="pills" id="pills-time">
+        <div class="pill on" onclick="selP(this,'time')">⚡ Time Azul</div>
+        <div class="pill"   onclick="selP(this,'time')">💜 Time Roxo</div>
+        <div class="pill"   onclick="selP(this,'time')">Automático</div>
+      </div>
+    </div>
+
+    <button class="btn btn-gold btn-full btn-lg" onclick="entrarSala()" style="margin-top:.5rem">
+      Entrar na Sala →
+    </button>
+  </div>
+
+  <!-- Gatilho discreto no rodapé — quase invisível -->
+  <div style="margin-top:2rem;position:relative;z-index:1;text-align:center;">
+    <div style="font-size:.72rem;color:var(--text3)">
+      Quiz competitivo online • EDUC Games Educacional
+    </div>
+    <!-- ██ ÁREA DO PROFESSOR — Gatilho discreto ██ -->
+    <button class="prof-trigger" id="prof-trigger-btn" onclick="abrirLoginProf()" title="">⚙</button>
+    <!-- ██ FIM Gatilho ██ -->
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAINEL DO PROFESSOR — oculto, ativado por senha
+     ══════════════════════════════════════════════ -->
+<div id="screen-menu" class="screen">
+  <div class="ag"></div><div class="agrid"></div>
+
+  <div class="logo-wrap">
+    <div class="logo-educ">EDUC Games Educacional</div>
+    <div class="logo-main">QuizArena</div>
+    <div class="logo-sub">Painel do Professor</div>
+    <div class="logo-prof-tag">🔐 Modo Professor Ativo</div>
+  </div>
+
+  <div class="menu-grid">
+    <div class="mc gb" onclick="nav('criar-sala')">
+      <span class="pt pt1">Fase 1</span>
+      <span class="mc-icon">🎮</span>
+      <h3>Criar Sala</h3>
+      <p>Configure a partida e gere o código da sala</p>
+    </div>
+    <div class="mc gb" onclick="nav('espera');G.prof=false;atualizarEspera()">
+      <span class="pt pt1">Fase 1</span>
+      <span class="mc-icon">📺</span>
+      <h3>Monitorar Sala</h3>
+      <p>Ver sala de espera e alunos conectados</p>
+    </div>
+    <div class="mc gb" onclick="iniciarDemo()">
+      <span class="pt pt1">Demo ⚡</span>
+      <span class="mc-icon">▶</span>
+      <h3>Jogar Demo</h3>
+      <p>Testar a partida completa sem Firebase</p>
+    </div>
+    <div class="mc cb" onclick="nav('banco')">
+      <span class="pt pt2">Fase 2</span>
+      <span class="mc-icon">📚</span>
+      <h3>Banco de Questões</h3>
+      <p>Criar, editar e organizar questões BNCC</p>
+    </div>
+    <div class="mc cb" onclick="abrirRelatorioDemo()">
+      <span class="pt pt2">Fase 2</span>
+      <span class="mc-icon">📊</span>
+      <h3>Relatório Detalhado</h3>
+      <p>Análise por questão, acertos, tempo e combo</p>
+    </div>
+    <div class="mc cb" onclick="nav('painel-prof')">
+      <span class="pt pt2">Fase 2</span>
+      <span class="mc-icon">🎓</span>
+      <h3>Painel Árbitro</h3>
+      <p>Controlar a partida ao vivo, pular, pausar</p>
+    </div>
+    <div class="mc full" style="border-top:2px solid rgba(168,85,247,.5)" onclick="nav('torneio')">
+      <span class="pt pt3">Fase 3</span>
+      <span class="mc-icon">🏆</span>
+      <h3>Torneio Escola vs Escola</h3>
+      <p>Chaveamento eliminatório · Ranking ao vivo · Partidas simultâneas entre escolas</p>
+    </div>
+  </div>
+
+  <div class="prof-logout-bar">
+    <button class="btn btn-ghost btn-sm" onclick="sairModoProf()">← Voltar à tela do aluno</button>
+    <button class="btn btn-red btn-sm"   onclick="logoutProf()">🔐 Sair do modo professor</button>
+  </div>
+</div>
+
+<!-- CRIAR SALA -->
+<div id="screen-criar-sala" class="screen fs">
+  <button class="back" onclick="nav('menu')">← Voltar</button>
+  <div class="fcard">
+    <div class="pb-badge pb1">● Fase 1 — MVP</div>
+    <h2>Criar Sala</h2>
+    <p class="sub">Configure a partida e compartilhe o código com os alunos</p>
+    <div class="fg">
+      <label class="label">Seu nome (professor)</label>
+      <input type="text" class="input" id="prof-nome" placeholder="Prof. Sebastião">
+    </div>
+    <div class="fg fg2">
+      <div>
+        <label class="label">Disciplina</label>
+        <select class="select" id="disc">
+          <option value="matematica">Matemática</option>
+          <option value="portugues">Língua Portuguesa</option>
+          <option value="ciencias">Ciências</option>
+          <option value="historia">História</option>
+          <option value="informatica">Informática</option>
+          <option value="geral">Quiz Geral (misto)</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Série</label>
+        <select class="select" id="serie">
+          <option value="ef1">EF 1º–3º ano</option>
+          <option value="ef2">EF 4º–5º ano</option>
+          <option value="ef3">EF 6º–7º ano</option>
+          <option value="ef4">EF 8º–9º ano</option>
+          <option value="em">Ensino Médio</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="label">Modo de Disputa</label>
+      <div class="pills" id="pills-modo">
+        <div class="pill on" onclick="selP(this,'modo')">Dupla vs Dupla</div>
+        <div class="pill"   onclick="selP(this,'modo')">Grupo vs Grupo</div>
+        <div class="pill"   onclick="selP(this,'modo')">Turma vs Turma</div>
+        <div class="pill"   onclick="selP(this,'modo')">Escola vs Escola</div>
+      </div>
+    </div>
+    <div class="fg fg2">
+      <div>
+        <label class="label">Nº de questões</label>
+        <select class="select" id="num-q">
+          <option value="5">5 questões</option>
+          <option value="10" selected>10 questões</option>
+          <option value="15">15 questões</option>
+          <option value="20">20 questões</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Tempo por questão</label>
+        <select class="select" id="tempo-q">
+          <option value="15">15 segundos</option>
+          <option value="20" selected>20 segundos</option>
+          <option value="30">30 segundos</option>
+          <option value="45">45 segundos</option>
+        </select>
+      </div>
+    </div>
+    <div class="factions">
+      <button class="btn btn-ghost" onclick="nav('menu')">Cancelar</button>
+      <button class="btn btn-gold btn-full" onclick="criarSala()">Criar Sala ✦</button>
+    </div>
+  </div>
+</div>
+
+<!-- SALA DE ESPERA -->
+<div id="screen-espera" class="screen">
+  <button class="back" onclick="nav('menu')">← Sair</button>
+  <div class="espera-top">
+    <div class="pb-badge pb1" style="margin:0 auto .875rem">● Sala Ativa</div>
+    <div style="color:var(--text2);font-size:.85rem;margin-bottom:.4rem">Código da sala</div>
+    <div class="cod-disp" id="cod-display">QUIZ42</div>
+    <div style="color:var(--text2);font-size:.85rem;margin-top:.35rem">Compartilhe com os alunos</div>
+  </div>
+  <div class="arena-times" style="max-width:820px;width:100%;padding:0 1.5rem">
+    <div class="tcard ta"><h3>⚡ Time Azul</h3><div id="lista-ta"></div></div>
+    <div class="vs-mid">VS</div>
+    <div class="tcard tb"><h3>💜 Time Roxo</h3><div id="lista-tb"></div></div>
+  </div>
+  <div class="cfg-strip" style="max-width:820px;width:100%;margin:1.5rem 1.5rem 0">
+    <span>📚 <strong id="ci-disc">—</strong></span>
+    <span>❓ <strong id="ci-q">—</strong></span>
+    <span>⏱ <strong id="ci-t">—</strong></span>
+    <span>🎮 <strong id="ci-modo">—</strong></span>
+  </div>
+  <div class="espera-actions">
+    <button class="btn btn-ghost" onclick="nav('menu')">Cancelar</button>
+    <button class="btn btn-gold btn-lg" onclick="iniciarPartida()">▶ Iniciar Partida</button>
+  </div>
+  <div style="margin-top:1rem;font-size:.75rem;color:var(--text3);text-align:center;padding:0 1.5rem">
+    🔥 Firebase: configure <code style="color:var(--gold)">FB_CONFIG</code> para modo online real
+  </div>
+</div>
+
+<!-- CONTAGEM -->
+<div id="screen-contagem" class="screen" style="align-items:center;justify-content:center;background:var(--bg)">
+  <div style="font-family:var(--fd);font-size:.9rem;letter-spacing:.2em;text-transform:uppercase;color:var(--text2);margin-bottom:.875rem">Preparar...</div>
+  <div class="cnt-num" id="cnt-num">3</div>
+  <div style="font-family:var(--fd);font-size:1.1rem;color:var(--text2);margin-top:.875rem" id="cnt-sub">Time Azul ⚡</div>
+</div>
+
+<!-- JOGO -->
+<div id="screen-jogo" class="screen" style="align-items:center">
+  <div class="jogo-inner">
+    <div class="jhdr">
+      <div><div class="prog-lbl">Questão</div><div class="prog-num"><span id="q-num">1</span>/<span id="q-tot">10</span></div></div>
+      <div class="twrap">
+        <svg viewBox="0 0 66 66"><circle class="tbg" cx="33" cy="33" r="27"/><circle class="tfg" id="tfg" cx="33" cy="33" r="27"/></svg>
+        <div class="tnum"><span id="tnum" style="color:var(--gold)">20</span></div>
+      </div>
+      <div class="scores">
+        <div class="sb sa"><span class="stn">Azul</span><span class="spt" id="sc-a">0</span></div>
+        <div class="sb sb2"><span class="stn">Roxo</span><span class="spt" id="sc-b">0</span></div>
+      </div>
+    </div>
+    <div class="qbox">
+      <div class="qdisc" id="q-disc">Matemática</div>
+      <div class="qtxt"  id="q-txt">Carregando...</div>
+    </div>
+    <div class="opcoes" id="opc-wrap">
+      <button class="opc" onclick="resp(0)"><span class="ol">A</span><span id="o0">—</span></button>
+      <button class="opc" onclick="resp(1)"><span class="ol">B</span><span id="o1">—</span></button>
+      <button class="opc" onclick="resp(2)"><span class="ol">C</span><span id="o2">—</span></button>
+      <button class="opc" onclick="resp(3)"><span class="ol">D</span><span id="o3">—</span></button>
+    </div>
+    <div class="jfoot">
+      <span>Combo: <span class="combo-v" id="combo-v">×1</span></span>
+      <span id="meu-time" style="font-size:.82rem;color:var(--text2)">Time Azul ⚡</span>
+    </div>
+  </div>
+</div>
+
+<!-- Feedback overlay -->
+<div class="fb-ov" id="fb-ov">
+  <div class="fb-ban" id="fb-ban">CORRETO!</div>
+  <div class="fb-pts" id="fb-pts">+150 pts</div>
+  <div class="fb-sub" id="fb-sub"></div>
+</div>
+
+<!-- PLACAR PARCIAL -->
+<div id="screen-placar" class="screen">
+  <div class="pl-card" style="margin:auto">
+    <div class="pl-tit">Placar Parcial</div>
+    <div class="pl-rod" id="pl-rod">Após questão 1</div>
+    <div class="pl-row">
+      <div class="pl-time" id="pla"><div class="pl-tnome" style="color:var(--cyan)">⚡ Time Azul</div><div class="pl-pts" id="pl-pa">0</div><div class="pl-ac" id="pl-aa">0 acertos</div></div>
+      <div class="pl-vs">×</div>
+      <div class="pl-time" id="plb"><div class="pl-tnome" style="color:var(--purple)">💜 Time Roxo</div><div class="pl-pts" id="pl-pb">0</div><div class="pl-ac" id="pl-ab">0 acertos</div></div>
+    </div>
+    <div class="nxt-bar"><span>Próxima em</span><div class="nxt-prog"><div class="nxt-fill" id="nf"></div></div><span class="nxt-cnt" id="nc">5s</span></div>
+  </div>
+</div>
+
+<!-- RESULTADO -->
+<div id="screen-resultado" class="screen">
+  <canvas id="ccnv" style="position:fixed;inset:0;pointer-events:none;z-index:0;width:100%;height:100%"></canvas>
+  <div class="res-wrap">
+    <div style="font-size:3.5rem;margin-bottom:.5rem">🏆</div>
+    <div class="res-camp-lbl">Campeão da Partida</div>
+    <div class="res-camp-nm" id="rn">Time Azul</div>
+    <div class="res-camp-pt" id="rp">850 pontos</div>
+    <div class="podio" id="podio"></div>
+    <div class="res-stats">
+      <div><div class="rs-lbl">Questões</div><div class="rs-val" id="rs-q">10</div></div>
+      <div><div class="rs-lbl">Melhor Combo</div><div class="rs-val" style="color:var(--gold)" id="rs-c">×3</div></div>
+      <div><div class="rs-lbl">Tempo Total</div><div class="rs-val" id="rs-t">4:32</div></div>
+    </div>
+    <div class="res-actions">
+      <button class="btn btn-ghost" onclick="nav('aluno')">Início</button>
+      <button class="btn btn-gold"  onclick="jogarNov()">Jogar Novamente ↺</button>
+      <button class="btn btn-cyan"  onclick="abrirRelatorio()">📊 Relatório</button>
+    </div>
+  </div>
+</div>
+
+<!-- RELATÓRIO -->
+<div id="screen-relatorio" class="screen">
+  <button class="back" onclick="nav('resultado')">← Resultado</button>
+  <div class="rel-wrap">
+    <div class="rel-head">
+      <div><div class="pb-badge pb2">● Fase 2 — Relatório</div><h2>Relatório da Partida</h2></div>
+      <div style="display:flex;gap:.75rem">
+        <button class="btn btn-ghost btn-sm" onclick="exportarRelatorio()">⬇ .txt</button>
+        <button class="btn btn-ghost btn-sm" onclick="nav('menu')">Menu</button>
+      </div>
+    </div>
+    <div class="rel-grid" id="rel-stats-cards"></div>
+    <div class="rel-row">
+      <div class="rel-card"><h4>Pontos por Questão</h4><div id="barchart-wrap"></div></div>
+      <div class="rel-card"><h4>Gabarito</h4><div id="gabarito-list"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- BANCO DE QUESTÕES -->
+<div id="screen-banco" class="screen">
+  <button class="back" onclick="nav('menu')">← Voltar</button>
+  <div class="banco-wrap">
+    <div class="pb-badge pb2">● Fase 2 — Editor de Questões</div>
+    <div class="banco-header">
+      <h2>Banco de Questões</h2>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-gold btn-sm" onclick="abrirModal()">+ Nova Questão</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportarBanco()">⬇ JSON</button>
+      </div>
+    </div>
+    <div class="banco-filtros">
+      <select class="select" style="max-width:200px" id="filt-disc" onchange="renderBanco()">
+        <option value="all">Todas as disciplinas</option>
+        <option value="matematica">Matemática</option>
+        <option value="portugues">Português</option>
+        <option value="ciencias">Ciências</option>
+        <option value="historia">História</option>
+        <option value="informatica">Informática</option>
+        <option value="geral">Quiz Geral</option>
+      </select>
+      <div style="font-size:.82rem;color:var(--text2);display:flex;align-items:center"><span id="banco-count">0</span></div>
+    </div>
+    <div id="banco-lista"></div>
+  </div>
+</div>
+
+<!-- Modal editor questão -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">Nova Questão</h3>
+    <div class="fg"><label class="label">Texto</label><textarea class="input" id="m-txt" rows="3" style="resize:vertical" placeholder="Digite a pergunta..."></textarea></div>
+    <div class="fg fg2">
+      <div><label class="label">Disciplina</label>
+        <select class="select" id="m-disc">
+          <option value="matematica">Matemática</option><option value="portugues">Português</option>
+          <option value="ciencias">Ciências</option><option value="historia">História</option>
+          <option value="informatica">Informática</option><option value="geral">Quiz Geral</option>
+        </select>
+      </div>
+      <div><label class="label">Série</label>
+        <select class="select" id="m-serie">
+          <option value="ef1">EF 1º–3º</option><option value="ef2">EF 4º–5º</option>
+          <option value="ef3">EF 6º–7º</option><option value="ef4">EF 8º–9º</option><option value="em">EM</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="label">Opções — clique no botão para marcar a correta</label>
+      <div id="m-opcoes">
+        <div class="opc-editor"><button class="opc-letra-btn" onclick="marcarCorreta(0)" id="mb-0">A</button><input type="text" class="input" id="m-op-0" placeholder="Opção A"></div>
+        <div class="opc-editor"><button class="opc-letra-btn" onclick="marcarCorreta(1)" id="mb-1">B</button><input type="text" class="input" id="m-op-1" placeholder="Opção B"></div>
+        <div class="opc-editor"><button class="opc-letra-btn" onclick="marcarCorreta(2)" id="mb-2">C</button><input type="text" class="input" id="m-op-2" placeholder="Opção C"></div>
+        <div class="opc-editor"><button class="opc-letra-btn" onclick="marcarCorreta(3)" id="mb-3">D</button><input type="text" class="input" id="m-op-3" placeholder="Opção D"></div>
+      </div>
+      <div style="font-size:.78rem;color:var(--green);margin-top:.5rem" id="m-correta-hint">Nenhuma selecionada</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-gold btn-full" onclick="salvarQuestao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TORNEIO -->
+<div id="screen-torneio" class="screen">
+  <button class="back" onclick="nav('menu')">← Voltar</button>
+  <div class="torneio-wrap">
+    <div class="pb-badge pb3">● Fase 3 — Torneio Regional</div>
+    <div class="torneio-header">
+      <div><h2>Torneio QuizArena</h2><div style="color:var(--text2);font-size:.88rem">Campeonato Regional</div></div>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="nav('ranking')">🏅 Ranking</button>
+        <button class="btn btn-gold btn-sm" onclick="toast('🏆 Criação de torneio — Fase 3 em desenvolvimento')">+ Criar Torneio</button>
+      </div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid rgba(168,85,247,.3);border-radius:var(--r);padding:1.125rem 1.5rem;margin-bottom:1.5rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;text-align:center">
+      <div><div style="font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Edição</div><div style="font-family:var(--fd);font-weight:800;font-size:1.3rem">2025 · #1</div></div>
+      <div><div style="font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Escolas</div><div style="font-family:var(--fd);font-weight:800;font-size:1.3rem;color:var(--purple)">8</div></div>
+      <div><div style="font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Disciplina</div><div style="font-family:var(--fd);font-weight:800;font-size:1.3rem">Geral</div></div>
+      <div><div style="font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Status</div><div style="font-family:var(--fd);font-weight:800;font-size:1.3rem;color:var(--red)">Ao Vivo</div></div>
+    </div>
+    <div class="bracket" id="bracket-wrap"></div>
+  </div>
+</div>
+
+<!-- RANKING -->
+<div id="screen-ranking" class="screen">
+  <button class="back" onclick="nav('torneio')">← Torneio</button>
+  <div style="max-width:900px;margin:0 auto;width:100%;padding:4rem 1.5rem 2rem">
+    <div class="pb-badge pb3">● Fase 3</div>
+    <h2 style="font-family:var(--fd);font-size:2rem;font-weight:800;margin-bottom:1.5rem">Ranking de Escolas</h2>
+    <div style="overflow-x:auto"><table class="ranking-table" id="ranking-table"></table></div>
+  </div>
+</div>
+
+<!-- PAINEL PROFESSOR -->
+<div id="screen-painel-prof" class="screen">
+  <button class="back" onclick="nav('menu')">← Menu</button>
+  <div style="max-width:1000px;margin:0 auto;width:100%;padding:4rem 1.5rem 2rem">
+    <div class="pb-badge pb2" style="margin-bottom:1rem">● Fase 2/3 — Painel Árbitro</div>
+    <div class="prof-hdr">
+      <div class="prof-title">🎓 Partida ao Vivo</div>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="pausarJogo()">⏸ Pausar</button>
+        <button class="btn btn-ghost btn-sm" onclick="pularQuestao()">⏭ Próxima</button>
+        <button class="btn btn-red btn-sm"   onclick="encerrarJogo()">⏹ Encerrar</button>
+      </div>
+    </div>
+    <div class="prof-grid">
+      <div class="pcard">
+        <h4>Placar ao Vivo</h4>
+        <div style="display:flex;gap:.75rem;margin-bottom:.75rem">
+          <div style="flex:1;background:rgba(0,217,255,.08);border:1px solid rgba(0,217,255,.25);border-radius:8px;padding:1rem;text-align:center">
+            <div style="font-size:.72rem;color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:.06em">⚡ Azul</div>
+            <div style="font-family:var(--fd);font-size:2.5rem;font-weight:800" id="prof-sc-a">0</div>
+          </div>
+          <div style="flex:1;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:8px;padding:1rem;text-align:center">
+            <div style="font-size:.72rem;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:.06em">💜 Roxo</div>
+            <div style="font-family:var(--fd);font-size:2.5rem;font-weight:800" id="prof-sc-b">0</div>
+          </div>
+        </div>
+        <div class="pstat"><span>Questão atual</span><span class="pstat-v" id="prof-qi">1/10</span></div>
+        <div class="pstat"><span>Responderam</span><span class="pstat-v" id="prof-resp">—</span></div>
+        <div class="pstat"><span>Maior combo</span><span class="pstat-v" style="color:var(--gold)" id="prof-combo">×1</span></div>
+      </div>
+      <div class="pcard">
+        <h4>Respostas — Questão Atual</h4>
+        <div class="resp-vivo" id="resp-vivo"></div>
+      </div>
+      <div class="pcard">
+        <h4>Feed de Eventos</h4>
+        <div id="prof-feed" style="max-height:220px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL DE LOGIN DO PROFESSOR
+     (idêntico ao padrão do menu EDUC)
+     ══════════════════════════════════════════════ -->
+<!-- ████████████████████████████████████████████
+     ÁREA DO PROFESSOR — MODAL LOGIN — INÍCIO
+     Não modificar os IDs deste bloco.
+     ████████████████████████████████████████████ -->
+<div id="modal-prof-login">
+  <div class="prof-login-box">
+    <button class="pl-close" onclick="fecharLoginProf()">✕</button>
+    <h2>⚡ Acesso Restrito</h2>
+    <p class="sub">Área exclusiva do professor.<br>Digite a senha para continuar.</p>
+    <div class="pl-row">
+      <input type="password" class="pl-input" id="prof-pass-input"
+        placeholder="Senha do professor" maxlength="32"
+        onkeydown="if(event.key==='Enter') loginProf()">
+      <button class="pl-btn" onclick="loginProf()">▶ Entrar</button>
+    </div>
+    <div class="pl-feedback" id="prof-login-feedback"></div>
+  </div>
+</div>
+<!-- ████████████████████████████████████████████
+     ÁREA DO PROFESSOR — MODAL LOGIN — FIM
+     ████████████████████████████████████████████ -->
+
+<!-- ══════════════════════════════════════════════
+     SCRIPTS
+     ══════════════════════════════════════════════ -->
+<script>
+/* ════════════════════════════════════════════
+   FIREBASE CONFIG — arenaquizon
+   Projeto: arenaquizon · Prof. Sebastião
+════════════════════════════════════════════ */
+const FB_CONFIG = {
+  apiKey:            "AIzaSyBAhhY_jDamVrhW2vLrjedKswLDTdqvqNI",
+  authDomain:        "arenaquizon.firebaseapp.com",
+  databaseURL:       "https://arenaquizon-default-rtdb.firebaseio.com",
+  projectId:         "arenaquizon",
+  storageBucket:     "arenaquizon.firebasestorage.app",
+  messagingSenderId: "964791924737",
+  appId:             "1:964791924737:web:f9c3d97e82ef95fe70a800",
+  measurementId:     "G-10VJ07CKN7"
+};
+const FB_ON = Object.values(FB_CONFIG).some(Boolean);
+let db = null;
+if (FB_ON && typeof firebase !== 'undefined') {
+  firebase.initializeApp(FB_CONFIG); db = firebase.database();
+}
+
+/* ════════════════════════════════════════════
+   ██████  ÁREA DO PROFESSOR — JS — INÍCIO  ██
+   Senha definida aqui. Altere conforme necessário.
+════════════════════════════════════════════ */
+const PROF_SENHA     = 'quiz2025';   // ← altere aqui
+const PROF_SESS_KEY  = 'qa_prof_ok';
+let   profTimerClick = null;
+let   profCliques    = 0;
+
+function abrirLoginProf() {
+  document.getElementById('modal-prof-login').classList.add('open');
+  setTimeout(() => document.getElementById('prof-pass-input').focus(), 120);
+}
+function fecharLoginProf() {
+  document.getElementById('modal-prof-login').classList.remove('open');
+  const inp = document.getElementById('prof-pass-input');
+  inp.value = ''; inp.classList.remove('err');
+  document.getElementById('prof-login-feedback').textContent = '';
+  document.getElementById('prof-login-feedback').className = 'pl-feedback';
+}
+function loginProf() {
+  const inp = document.getElementById('prof-pass-input');
+  const fb  = document.getElementById('prof-login-feedback');
+  inp.classList.remove('err');
+  fb.textContent = ''; fb.className = 'pl-feedback';
+  if (!inp.value) { inp.classList.add('err'); fb.className='pl-feedback err'; fb.textContent='Digite a senha.'; return; }
+  if (inp.value === PROF_SENHA) {
+    sessionStorage.setItem(PROF_SESS_KEY, '1');
+    fecharLoginProf();
+    nav('menu');
+  } else {
+    inp.value = ''; inp.classList.add('err');
+    fb.className = 'pl-feedback err'; fb.textContent = 'Senha incorreta.';
+    setTimeout(() => inp.classList.remove('err'), 600);
+  }
+}
+function sairModoProf() { nav('aluno'); }
+function logoutProf() {
+  sessionStorage.removeItem(PROF_SESS_KEY);
+  nav('aluno');
+  toast('🔐 Sessão do professor encerrada.');
+}
+
+/* Registrar triple-click na logo e no gatilho do rodapé */
+(function registrarGatilhos() {
+  document.addEventListener('DOMContentLoaded', () => {
+    // Triple-click no logo "QuizArena"
+    const logo = document.getElementById('logo-gatilho');
+    if (logo) {
+      logo.addEventListener('click', () => {
+        profCliques++;
+        clearTimeout(profTimerClick);
+        profTimerClick = setTimeout(() => { profCliques = 0; }, 700);
+        if (profCliques >= 3) { profCliques = 0; abrirLoginProf(); }
+      });
+    }
+    // Restaura sessão se professor já estava logado
+    if (sessionStorage.getItem(PROF_SESS_KEY) === '1') nav('menu');
+  });
+})();
+/* ██████  ÁREA DO PROFESSOR — JS — FIM  ██████ */
+
+/* ════════════════════════════════════════════
+   BANCO DE QUESTÕES PADRÃO — BNCC
+════════════════════════════════════════════ */
+const BANCO_BASE={matematica:[{tx:"Quanto é 12 × 8?",op:["96","88","104","76"],c:0,s:"ef2"},{tx:"Raiz quadrada de 144:",op:["10","11","12","14"],c:2,s:"ef3"},{tx:"Triângulo com ângulos 60° e 80°. O terceiro é:",op:["30°","40°","50°","60°"],c:1,s:"ef3"},{tx:"Quanto é 2³ + 3²?",op:["13","17","19","21"],c:1,s:"ef4"},{tx:"Se x + 5 = 13, então x vale:",op:["6","7","8","9"],c:2,s:"ef3"},{tx:"Hexágono tem quantos lados?",op:["4","5","6","7"],c:2,s:"ef1"},{tx:"MMC de 4 e 6:",op:["8","10","12","24"],c:2,s:"ef3"},{tx:"Pizza com 8 fatias. João comeu 3/8. Quantas sobram?",op:["3","4","5","6"],c:2,s:"ef2"},{tx:"Milímetros em 1 metro:",op:["10","100","1000","10000"],c:2,s:"ef2"},{tx:"Área de retângulo 5m × 8m:",op:["26m²","30m²","40m²","45m²"],c:2,s:"ef3"},{tx:"Dobro de 37:",op:["64","72","74","76"],c:2,s:"ef1"},{tx:"5² − 3² =",op:["4","8","16","25"],c:2,s:"ef4"},{tx:"Se 3x = 24, x vale:",op:["6","7","8","9"],c:2,s:"ef3"},{tx:"1/4 + 2/4 =",op:["2/4","3/4","4/4","1/2"],c:1,s:"ef2"},{tx:"Próximo primo após 7:",op:["8","9","10","11"],c:3,s:"ef3"}],portugues:[{tx:"Substantivo próprio:",op:["cachorro","cidade","Brasil","alegria"],c:2,s:"ef2"},{tx:"Antônimo de 'alegre':",op:["animado","feliz","triste","contente"],c:2,s:"ef1"},{tx:"Em 'O gato pulou o muro', o sujeito é:",op:["o muro","O gato","pulou","o"],c:1,s:"ef3"},{tx:"Palavra correta:",op:["sezão","seção","çeção","seçao"],c:1,s:"ef4"},{tx:"Texto que conta história fictícia:",op:["notícia","editorial","conto","receita"],c:2,s:"ef2"},{tx:"Prefixo 'in-' em 'infeliz' indica:",op:["excesso","negação","repetição","tamanho"],c:1,s:"ef3"},{tx:"Plural de 'cidadão':",op:["cidadões","cidadãos","cidadões","cidadãons"],c:1,s:"ef3"},{tx:"Travessão é usado para:",op:["listar itens","indicar fala","separar datas","substituir vírgula"],c:1,s:"ef3"},{tx:"Em 'Ela canta bonito', 'bonito' é:",op:["adjetivo","substantivo","advérbio","verbo"],c:2,s:"ef4"},{tx:"Comparação com 'como':",op:["metáfora","ironia","símile","hipérbole"],c:2,s:"em"},{tx:"Gênero de 'a viagem':",op:["masculino","feminino","neutro","indefinido"],c:1,s:"ef2"},{tx:"'Rapidamente' é um:",op:["adjetivo","substantivo","advérbio","pronome"],c:2,s:"ef3"}],ciencias:[{tx:"Gás essencial para respiração:",op:["CO₂","N₂","O₂","H₂"],c:2,s:"ef1"},{tx:"Fotossíntese ocorre na:",op:["raiz","caule","folha","flor"],c:2,s:"ef2"},{tx:"Planeta mais próximo do Sol:",op:["Vênus","Marte","Mercúrio","Terra"],c:2,s:"ef2"},{tx:"Ecologia estuda:",op:["rochas","seres e ambiente","planetas","átomos"],c:1,s:"ef3"},{tx:"Unidade básica da vida:",op:["tecido","órgão","célula","sistema"],c:2,s:"ef3"},{tx:"Cadeia alimentar começa com:",op:["carnívoros","decompositores","produtores","herbívoros"],c:2,s:"ef3"},{tx:"DNA significa:",op:["Divisão Nuclear","Ácido Desoxirribonucleico","Dados Nucleares","Dinâmica do Aminoácido"],c:1,s:"ef4"},{tx:"Sistema que bombeia sangue:",op:["digestório","respiratório","circulatório","nervoso"],c:2,s:"ef2"},{tx:"Efeito estufa causado por:",op:["O₂","CO₂","N₂","H₂O"],c:1,s:"ef3"},{tx:"Estado com forma e volume definidos:",op:["gasoso","líquido","sólido","plasma"],c:2,s:"ef3"},{tx:"Satélite natural da Terra:",op:["Marte","Fobos","Lua","Titan"],c:2,s:"ef1"},{tx:"Clorofila dá cor _______ às plantas:",op:["amarela","vermelha","verde","azul"],c:2,s:"ef2"}],historia:[{tx:"Principal atividade no Brasil colônia:",op:["mineração","pecuária","pau-brasil","café"],c:2,s:"ef3"},{tx:"Ano da Independência do Brasil:",op:["1808","1822","1889","1824"],c:1,s:"ef3"},{tx:"Proclamou a República:",op:["D. Pedro II","Vargas","Deodoro da Fonseca","Tiradentes"],c:2,s:"ef4"},{tx:"Revolução Francesa:",op:["1689","1776","1789","1815"],c:2,s:"ef4"},{tx:"Lei que aboliu a escravidão:",op:["Eusébio de Queirós","Saraiva-Cotegipe","Áurea","Rio Branco"],c:2,s:"ef4"},{tx:"Construíram Machu Picchu:",op:["Astecas","Incas","Maias","Olmecas"],c:1,s:"ef4"},{tx:"2ª Guerra terminou em:",op:["1943","1944","1945","1946"],c:2,s:"ef4"},{tx:"Era Vargas:",op:["1889-1930","1930-1945","1945-1964","1964-1985"],c:1,s:"em"},{tx:"Martin Luther King Jr. foi:",op:["Presidente EUA","Líder dos direitos civis","General","Cientista"],c:1,s:"ef4"},{tx:"Iluminismo valorizava:",op:["fé e religião","razão e ciência","tradição","guerra"],c:1,s:"em"}],informatica:[{tx:"O que é um algoritmo?",op:["programa pronto","sequência de passos","hardware","linguagem de máquina"],c:1,s:"ef2"},{tx:"O que é um loop?",op:["erro","repetição de instrução","variável","função"],c:1,s:"ef3"},{tx:"HTML cria:",op:["bancos de dados","páginas web","sistemas operacionais","redes"],c:1,s:"ef3"},{tx:"Estrutura chave-valor:",op:["Array","Objeto/JSON","Loop","Booleana"],c:1,s:"ef4"},{tx:"'if' faz:",op:["repetir","tomar decisão","declarar variável","imprimir"],c:1,s:"ef3"},{tx:"Sistema Operacional:",op:["navegar","gerenciar recursos","criar doc","editar vídeos"],c:1,s:"ef4"},{tx:"Bug é:",op:["vírus","erro no programa","tipo de rede","arquivo"],c:1,s:"ef2"},{tx:"Booleana armazena:",op:["texto","decimal","verdadeiro ou falso","lista"],c:2,s:"ef3"},{tx:"Internet é:",op:["programa","rede mundial","hardware","linguagem"],c:1,s:"ef2"},{tx:"Criptografia:",op:["acelerar downloads","proteger informações","criar gráficos","comprimir"],c:1,s:"ef4"},{tx:"Compilador:",op:["vírus","traduz código-fonte","memória","protocolo"],c:1,s:"ef4"}],geral:[{tx:"Capital do Brasil:",op:["São Paulo","Rio de Janeiro","Brasília","Salvador"],c:2,s:"ef1"},{tx:"Quantos estados tem o Brasil?",op:["24","25","26","27"],c:2,s:"ef2"},{tx:"Maior oceano do mundo:",op:["Atlântico","Índico","Pacífico","Ártico"],c:2,s:"ef2"},{tx:"Símbolo do ouro:",op:["Go","Au","Or","Ag"],c:1,s:"ef4"},{tx:"Escreveu Dom Casmurro:",op:["José de Alencar","Machado de Assis","Lima Barreto","Euclides da Cunha"],c:1,s:"ef4"},{tx:"Maior país em área:",op:["EUA","China","Brasil","Rússia"],c:3,s:"ef3"},{tx:"Planetas no sistema solar:",op:["7","8","9","10"],c:1,s:"ef2"},{tx:"Mede temperatura:",op:["barômetro","termômetro","anemômetro","higrômetro"],c:1,s:"ef2"},{tx:"ONU fundada em:",op:["1939","1942","1945","1948"],c:2,s:"ef4"},{tx:"Ave que não voa:",op:["andorinha","pombo","avestruz","beija-flor"],c:2,s:"ef1"},{tx:"Pintou a Mona Lisa:",op:["Michelangelo","Rafael","Leonardo da Vinci","Botticelli"],c:2,s:"ef4"},{tx:"Língua oficial do Brasil:",op:["espanhol","inglês","português","tupi"],c:2,s:"ef1"}]};
+let BANCO=carregarBanco();
+let modalCorreta=-1,modalMode='new',modalDisc='',modalIdx=-1;
+
+/* ════════════════════════════════════════════
+   ESTADO DO JOGO
+════════════════════════════════════════════ */
+const G={prof:false,nome:'',time:'A',disc:'geral',nq:10,tq:20,modo:'Dupla vs Dupla',cod:'',
+  qi:0,questoes:[],sc:{A:0,B:0},ac:{A:0,B:0},cb:{A:0,B:0},mxC:0,
+  respondeu:false,ivT:null,t0:null,jogA:[],jogB:[],hist:[]};
+const DNM={matematica:'Matemática',portugues:'Língua Portuguesa',ciencias:'Ciências',historia:'História',informatica:'Informática',geral:'Quiz Geral'};
+const SIGLA={matematica:'MAT',portugues:'PORT',ciencias:'CIE',historia:'HIS',informatica:'INF',geral:'GER'};
+
+/* ════════════════════════════════════════════
+   NAVEGAÇÃO
+════════════════════════════════════════════ */
+function nav(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('screen-'+id);
+  if(el){el.classList.add('active');window.scrollTo(0,0);}
+  if(id==='banco')renderBanco();
+  if(id==='ranking')renderRanking();
+  if(id==='torneio')renderBracket();
+  if(id==='painel-prof')renderPainelProf();
+}
+
+/* ════════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════════ */
+function selP(el,g){el.closest('.pills').querySelectorAll('.pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');}
+function getPill(id){return document.getElementById(id)?.querySelector('.pill.on')?.textContent?.trim()||'';}
+function gCod(){return Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*33)]).join('');}
+function prepQ(disc,n){return[...(BANCO[disc]||BANCO.geral)].sort(()=>Math.random()-.5).slice(0,Math.min(n,(BANCO[disc]||BANCO.geral).length));}
+function updSc(){document.getElementById('sc-a').textContent=G.sc.A;document.getElementById('sc-b').textContent=G.sc.B;}
+function rJogs(lid,jogs){const el=document.getElementById(lid);if(!el)return;el.innerHTML=!jogs.length?`<div class="jrow"><div class="jav" style="background:rgba(255,255,255,.04);color:var(--text3)">?</div><div class="jnome" style="color:var(--text3)">Aguardando...</div></div>`:jogs.map(j=>`<div class="jrow"><div class="jav">${j.ini}</div><div class="jnome">${j.nome}${j.prof?' 👨‍🏫':''}</div><div class="jdot"></div></div>`).join('');}
+function toast(m){const el=document.createElement('div');el.className='toast';el.textContent=m;document.body.appendChild(el);setTimeout(()=>{el.style.animation='t-in .3s ease reverse';setTimeout(()=>el.remove(),300);},2800);}
+
+/* ════════════════════════════════════════════
+   CRIAR SALA / ENTRAR / ESPERA
+════════════════════════════════════════════ */
+function criarSala(){
+  G.prof=true;G.nome=document.getElementById('prof-nome').value.trim()||'Professor';
+  G.disc=document.getElementById('disc').value;G.nq=parseInt(document.getElementById('num-q').value);
+  G.tq=parseInt(document.getElementById('tempo-q').value);G.modo=getPill('pills-modo')||'Dupla vs Dupla';
+  G.cod=gCod();G.questoes=prepQ(G.disc,G.nq);
+  G.sc={A:0,B:0};G.ac={A:0,B:0};G.cb={A:0,B:0};G.qi=0;G.mxC=0;G.hist=[];
+  G.jogA=[{nome:G.nome,ini:G.nome[0].toUpperCase(),prof:true}];G.jogB=[];
+  if(db){
+    // Grava a sala no Firebase
+    db.ref('salas/'+G.cod).set({
+      config:{disc:G.disc,nq:G.nq,tq:G.tq,modo:G.modo},
+      estado:'aguardando',
+      times:{A:{jogs:{0:G.nome},pts:0},B:{jogs:{},pts:0}}
+    });
+    // Escuta alunos entrando em tempo real
+    escutarSala(G.cod);
+  }
+  atualizarEspera();nav('espera');
+}
+function entrarSala(){
+  const nome=document.getElementById('aluno-nome').value.trim();
+  const cod=document.getElementById('cod-entrada').value.trim().toUpperCase();
+  const tp=getPill('pills-time');
+  if(!nome){toast('Digite seu nome!');return;}
+  if(!cod||cod.length<4){toast('Digite o código da sala!');return;}
+  G.nome=nome;G.cod=cod;G.prof=false;
+  G.time=tp.includes('Roxo')?'B':tp.includes('Auto')?(Math.random()>.5?'A':'B'):'A';
+  if(db){
+    db.ref('salas/'+cod).once('value',snap=>{
+      if(!snap.exists()){toast('Sala não encontrada!');return;}
+      const s=snap.val();G.disc=s.config.disc;G.nq=s.config.nq;G.tq=s.config.tq;G.modo=s.config.modo;
+      G.questoes=prepQ(G.disc,G.nq);
+      db.ref('salas/'+cod+'/times/'+G.time+'/jogs').push(nome);
+      escutarSala(cod);  // aluno escuta mudança de estado (inicio/fim)
+      atualizarEspera();nav('espera');
+    });
+  }else{
+    G.disc='geral';G.nq=6;G.tq=15;G.modo='Dupla vs Dupla';G.questoes=prepQ(G.disc,G.nq);
+    atualizarEspera();nav('espera');setTimeout(()=>iniciarPartida(),1600);
+  }
+}
+function atualizarEspera(){
+  document.getElementById('cod-display').textContent=G.cod;
+  document.getElementById('ci-disc').textContent=DNM[G.disc]||G.disc;
+  document.getElementById('ci-q').textContent=G.nq+' questões';
+  document.getElementById('ci-t').textContent=G.tq+'s/questão';
+  document.getElementById('ci-modo').textContent=G.modo;
+  rJogs('lista-ta',G.jogA);rJogs('lista-tb',G.jogB);
+}
+
+/* ════════════════════════════════════════════
+   ESCUTAR SALA — listener Firebase
+════════════════════════════════════════════ */
+function escutarSala(cod){
+  if(!db) return;
+  // Escuta lista de jogadores (professor e aluno veem em tempo real)
+  db.ref('salas/'+cod+'/times').on('value', snap=>{
+    if(!snap.exists()) return;
+    const t = snap.val();
+    const jogsA = t.A?.jogs ? Object.values(t.A.jogs) : [];
+    const jogsB = t.B?.jogs ? Object.values(t.B.jogs) : [];
+    G.jogA = jogsA.map(n=>({nome:n,ini:(n[0]||'?').toUpperCase(),prof:n===G.nome&&G.prof}));
+    G.jogB = jogsB.map(n=>({nome:n,ini:(n[0]||'?').toUpperCase()}));
+    G.sc.A = t.A?.pts || 0;
+    G.sc.B = t.B?.pts || 0;
+    // Atualiza sala de espera se estiver nela
+    if(document.getElementById('screen-espera')?.classList.contains('active')){
+      rJogs('lista-ta',G.jogA);
+      rJogs('lista-tb',G.jogB);
+    }
+  });
+  // Aluno escuta mudança de estado (inicio / fim)
+  if(!G.prof){
+    db.ref('salas/'+cod+'/estado').on('value', snap=>{
+      if(!snap.exists()) return;
+      const estado = snap.val();
+      if(estado==='iniciando'){G.t0=Date.now();contagem();}
+      if(estado==='fim'){mostrarResultado();}
+    });
+    // Aluno recebe as questões do servidor
+    db.ref('salas/'+cod+'/config').once('value', snap=>{
+      if(!snap.exists()) return;
+      const cfg = snap.val();
+      G.disc=cfg.disc; G.nq=cfg.nq; G.tq=cfg.tq; G.modo=cfg.modo;
+      G.questoes=prepQ(G.disc,G.nq);
+    });
+  }
+}
+
+/* ════════════════════════════════════════════
+   INICIAR + CONTAGEM + JOGO
+════════════════════════════════════════════ */
+function iniciarPartida(){
+  G.t0=Date.now();
+  if(!db){G.jogA=[{nome:G.nome||'Você',ini:(G.nome||'V')[0].toUpperCase(),prof:true}];G.jogB=[{nome:'AlunoBot',ini:'B'}];}
+  if(db && G.prof){
+    // Avisa todos os dispositivos que a partida começou
+    db.ref('salas/'+G.cod).update({estado:'iniciando'});
+  }
+  contagem();
+}
+function iniciarDemo(){G.prof=true;G.nome='Professor';G.time='A';G.disc='geral';G.nq=6;G.tq=15;G.modo='Demo';G.cod='DEMO01';G.questoes=prepQ('geral',6);G.sc={A:0,B:0};G.ac={A:0,B:0};G.cb={A:0,B:0};G.qi=0;G.mxC=0;G.hist=[];G.jogA=[{nome:'Você',ini:'V',prof:true}];G.jogB=[{nome:'BotRoxo',ini:'B'}];G.t0=Date.now();toast('⚡ Demo: 6 questões · Azul vs BotRoxo');document.getElementById('q-tot').textContent=6;comecar();}
+function contagem(){nav('contagem');let n=3;document.getElementById('cnt-num').textContent=n;document.getElementById('cnt-sub').textContent='Time '+(G.time==='A'?'Azul ⚡':'Roxo 💜');const iv=setInterval(()=>{n--;if(n<=0){clearInterval(iv);comecar();return;}const el=document.getElementById('cnt-num');el.style.animation='none';el.offsetHeight;el.style.animation='cnt-in 1s ease-in-out';el.textContent=n;},1000);}
+function comecar(){G.qi=0;G.sc={A:0,B:0};G.ac={A:0,B:0};G.cb={A:0,B:0};G.mxC=0;G.hist=[];document.getElementById('q-tot').textContent=G.questoes.length;nav('jogo');exibir(0);}
+function exibir(idx){
+  if(idx>=G.questoes.length){mostrarResultado();return;}
+  const q=G.questoes[idx];G.respondeu=false;
+  document.getElementById('q-num').textContent=idx+1;
+  document.getElementById('q-disc').textContent=DNM[G.disc]||G.disc;
+  document.getElementById('q-txt').textContent=q.tx;
+  document.getElementById('combo-v').textContent='×'+(1+G.cb[G.time]);
+  document.getElementById('meu-time').textContent='Time '+(G.time==='A'?'Azul ⚡':'Roxo 💜');
+  updSc();
+  document.querySelectorAll('.opc').forEach((b,i)=>{b.className='opc';b.querySelector('.ol').textContent='ABCD'[i];b.querySelector('span:last-child').textContent=q.op[i]||'';});
+  iniciarTimer();
+  if(!db){const bt=G.time==='A'?'B':'A';setTimeout(()=>{if(!G.respondeu&&G.qi===idx){const ok=Math.random()>.42;const ri=ok?q.c:(q.c+1+Math.floor(Math.random()*3))%4;processarResp(ri,bt,false,idx);}},4000+Math.random()*9000);}
+}
+function iniciarTimer(){const total=G.tq;let r=total;const C=2*Math.PI*27;const fg=document.getElementById('tfg');const tn=document.getElementById('tnum');fg.classList.remove('urg');fg.style.strokeDashoffset=0;tn.style.color='var(--gold)';clearInterval(G.ivT);G.ivT=setInterval(()=>{r--;tn.textContent=r;fg.style.strokeDashoffset=C*(1-r/total);if(r<=5){fg.classList.add('urg');tn.style.color='var(--red)';}if(r<=0){clearInterval(G.ivT);if(!G.respondeu)timeUp();}},1000);}
+function resp(idx){if(G.respondeu)return;processarResp(idx,G.time,true,G.qi);}
+function processarResp(idx,time,eJog,qi){
+  if(qi!==G.qi)return;const q=G.questoes[qi];const ok=idx===q.c;
+  if(eJog){G.respondeu=true;clearInterval(G.ivT);document.querySelectorAll('.opc').forEach(b=>b.classList.add('off'));document.querySelectorAll('.opc')[idx].classList.add(ok?'ok':'err');if(!ok)document.querySelectorAll('.opc')[q.c].classList.add('ok');}
+  let pts=0;if(ok){const tr=parseInt(document.getElementById('tnum').textContent)||0;G.cb[time]++;if(G.cb[time]>G.mxC)G.mxC=G.cb[time];pts=Math.round((100+tr*5)*Math.min(1+G.cb[time]*.2,2));G.sc[time]+=pts;G.ac[time]++;}else{G.cb[time]=0;}
+  if(!G.hist[qi])G.hist[qi]={q:qi,correta:q.c,respA:-1,respB:-1,ptsA:0,ptsB:0};G.hist[qi]['resp'+time]=idx;G.hist[qi]['pts'+time]=(G.hist[qi]['pts'+time]||0)+pts;
+  if(db && eJog){
+    db.ref('salas/'+G.cod+'/respostas/q'+qi+'/'+time).set({idx,ok,pts});
+    db.ref('salas/'+G.cod+'/times/'+time+'/pts').set(G.sc[time]);
+  }
+  if(eJog){updSc();document.getElementById('combo-v').textContent='×'+(1+G.cb[G.time]);feedback(ok,pts,G.cb[G.time]);}
+}
+function timeUp(){G.respondeu=true;document.querySelectorAll('.opc').forEach(b=>b.classList.add('off'));document.querySelectorAll('.opc')[G.questoes[G.qi].c].classList.add('ok');G.cb[G.time]=0;document.getElementById('combo-v').textContent='×1';feedback(false,0,0,true);}
+function feedback(ok,pts,combo,tu=false){
+  const ov=document.getElementById('fb-ov'),ban=document.getElementById('fb-ban'),pe=document.getElementById('fb-pts'),se=document.getElementById('fb-sub');
+  ov.style.display='flex';ban.style.animation='none';ban.offsetHeight;ban.style.animation='fbpop .5s cubic-bezier(.34,1.56,.64,1) both';
+  if(tu){ban.textContent='TEMPO!';ban.className='fb-ban er';pe.textContent='+0 pts';se.textContent='';}
+  else if(ok){ban.textContent=combo>=3?'🔥 COMBO!':'CORRETO!';ban.className='fb-ban ok';pe.textContent='+'+pts+' pts';se.textContent=combo>=2?'Combo ×'+combo+'!':('')}
+  else{ban.textContent='ERRADO!';ban.className='fb-ban er';pe.textContent='+0 pts';se.textContent='Combo resetado';}
+  setTimeout(()=>{ov.style.display='none';mostrarPlacar();},1750);
+}
+function mostrarPlacar(){
+  const qi=G.qi;document.getElementById('pl-rod').textContent='Após questão '+(qi+1)+' de '+G.questoes.length;
+  document.getElementById('pl-pa').textContent=G.sc.A;document.getElementById('pl-pb').textContent=G.sc.B;
+  document.getElementById('pl-aa').textContent=G.ac.A+' acertos';document.getElementById('pl-ab').textContent=G.ac.B+' acertos';
+  document.getElementById('pla').classList.toggle('lead',G.sc.A>G.sc.B);document.getElementById('plb').classList.toggle('lead',G.sc.B>G.sc.A);
+  nav('placar');let cnt=5;const nf=document.getElementById('nf'),nc=document.getElementById('nc');
+  nf.style.transition='none';nf.style.width='0%';nf.offsetHeight;nf.style.transition='width '+cnt+'s linear';nf.style.width='100%';
+  const iv=setInterval(()=>{cnt--;nc.textContent=cnt+'s';if(cnt<=0){clearInterval(iv);G.qi=qi+1;if(G.qi>=G.questoes.length)mostrarResultado();else{nav('jogo');exibir(G.qi);}}},1000);
+}
+
+/* ════════════════════════════════════════════
+   RESULTADO
+════════════════════════════════════════════ */
+function mostrarResultado(){
+  const{A,B}=G.sc;const ts=Math.round((Date.now()-(G.t0||Date.now()))/1000);const m=Math.floor(ts/60),s=ts%60;
+  const venc=A>B?'Time Azul ⚡':B>A?'Time Roxo 💜':'🤝 Empate!';
+  document.getElementById('rn').textContent=venc;document.getElementById('rp').textContent=Math.max(A,B)+' pontos';
+  document.getElementById('rs-q').textContent=G.questoes.length;document.getElementById('rs-c').textContent='×'+G.mxC;document.getElementById('rs-t').textContent=m+':'+String(s).padStart(2,'0');
+  const res=[{nm:'Time Azul',ini:'A',pts:A},{nm:'Time Roxo',ini:'B',pts:B}].sort((a,b)=>b.pts-a.pts);
+  document.getElementById('podio').innerHTML=`<div class="pi p2"><div class="pav">${res[1]?.ini||'B'}</div><div class="pnm">${res[1]?.nm||'—'}</div><div class="ppt">${res[1]?.pts||0} pts</div><div class="pblk">2</div></div><div class="pi p1"><div style="font-size:1.75rem;margin-bottom:.25rem">🏆</div><div class="pav">${res[0].ini}</div><div class="pnm">${res[0].nm}</div><div class="ppt">${res[0].pts} pts</div><div class="pblk">1</div></div>`;
+  if(db && G.prof){
+    db.ref('salas/'+G.cod).update({estado:'fim',resultado:{A:G.sc.A,B:G.sc.B}});
+    setTimeout(()=>{if(db)db.ref('salas/'+G.cod).remove();},300000);
+  }
+  nav('resultado');confetes();
+}
+function jogarNov(){G.questoes=prepQ(G.disc,G.nq);G.sc={A:0,B:0};G.ac={A:0,B:0};G.cb={A:0,B:0};G.qi=0;G.mxC=0;G.hist=[];G.t0=Date.now();comecar();}
+
+/* ════════════════════════════════════════════
+   RELATÓRIO
+════════════════════════════════════════════ */
+function abrirRelatorio(){if(!G.questoes.length){toast('Jogue uma partida primeiro!');return;}renderRelatorio();nav('relatorio');}
+function abrirRelatorioDemo(){G.disc='matematica';G.nq=8;G.modo='Demo';G.sc={A:720,B:580};G.ac={A:6,B:4};G.questoes=prepQ('matematica',8);G.hist=G.questoes.map((q,i)=>{const okA=Math.random()>.35,okB=Math.random()>.55;return{q:i,correta:q.c,respA:okA?q.c:(q.c+1)%4,respB:okB?q.c:(q.c+2)%4,ptsA:okA?Math.round(100+Math.random()*80):0,ptsB:okB?Math.round(80+Math.random()*80):0};});G.mxC=3;G.t0=Date.now()-300000;renderRelatorio();nav('relatorio');}
+function renderRelatorio(){
+  const{A,B}=G.sc;
+  document.getElementById('rel-stats-cards').innerHTML=`<div class="rel-stat"><div class="rv" style="color:var(--cyan)">${A}</div><div class="rl">Pontos Azul</div></div><div class="rel-stat"><div class="rv" style="color:var(--purple)">${B}</div><div class="rl">Pontos Roxo</div></div><div class="rel-stat"><div class="rv">${G.ac.A}/${G.questoes.length}</div><div class="rl">Acertos Azul</div></div><div class="rel-stat"><div class="rv">${G.ac.B}/${G.questoes.length}</div><div class="rl">Acertos Roxo</div></div>`;
+  const nq=G.questoes.length;const w=Math.max(500,nq*80);const h=180;const maxPts=Math.max(...G.hist.map(h=>Math.max(h.ptsA||0,h.ptsB||0)),100);let bars='';const bw=34,cx0=40;
+  for(let i=0;i<nq;i++){const hd=G.hist[i]||{ptsA:0,ptsB:0};const ha=Math.round((hd.ptsA/maxPts)*(h-30));const hb=Math.round((hd.ptsB/maxPts)*(h-30));const x=cx0+i*(bw*2+14);bars+=`<rect x="${x}" y="${h-ha}" width="${bw}" height="${ha}" fill="rgba(0,217,255,.7)" rx="3"/><rect x="${x+bw+2}" y="${h-hb}" width="${bw}" height="${hb}" fill="rgba(168,85,247,.7)" rx="3"/><text x="${x+bw+1}" y="${h+14}" text-anchor="middle" fill="#9298b0" font-size="11" font-family="Barlow Condensed,sans-serif">${i+1}</text>`;}
+  document.getElementById('barchart-wrap').innerHTML=`<svg width="${w}" height="${h+50}" style="min-width:300px"><line x1="30" y1="0" x2="30" y2="${h}" stroke="rgba(255,255,255,.12)" stroke-width="1"/><line x1="30" y1="${h}" x2="${w}" y2="${h}" stroke="rgba(255,255,255,.12)" stroke-width="1"/>${bars}<rect x="${cx0}" y="${h+26}" width="12" height="12" fill="rgba(0,217,255,.7)" rx="2"/><text x="${cx0+16}" y="${h+37}" fill="#9298b0" font-size="11" font-family="Barlow Condensed,sans-serif">Azul</text><rect x="${cx0+60}" y="${h+26}" width="12" height="12" fill="rgba(168,85,247,.7)" rx="2"/><text x="${cx0+76}" y="${h+37}" fill="#9298b0" font-size="11" font-family="Barlow Condensed,sans-serif">Roxo</text></svg>`;
+  document.getElementById('gabarito-list').innerHTML=G.questoes.map((q,i)=>{const hd=G.hist[i]||{respA:-1,respB:-1};const okA=hd.respA===q.c,okB=hd.respB===q.c;return`<div class="q-row-rel"><span class="q-idx">${i+1}</span><span class="q-txt-rel">${q.tx.slice(0,38)}${q.tx.length>38?'…':''}</span><span class="q-ok ${okA?'g':'r'}">A:${okA?'✓':'✗'}</span><span class="q-ok ${okB?'g':'r'}">R:${okB?'✓':'✗'}</span></div>`;}).join('');
+}
+function exportarRelatorio(){const l=['=== RELATÓRIO — QuizArena EDUC ===','','Disciplina: '+(DNM[G.disc]||G.disc),'Questões: '+G.questoes.length,'Modo: '+G.modo,'','-- RESULTADO --','Azul: '+G.sc.A+' pts | '+G.ac.A+' acertos','Roxo: '+G.sc.B+' pts | '+G.ac.B+' acertos','Vencedor: '+(G.sc.A>G.sc.B?'Azul':G.sc.B>G.sc.A?'Roxo':'Empate'),'Melhor combo: ×'+G.mxC,'','-- GABARITO --',...G.questoes.map((q,i)=>{const h=G.hist[i]||{respA:-1,respB:-1};return`Q${i+1}: ${q.tx}\n  Correta: ${q.op[q.c]}\n  Azul: ${q.op[h.respA]||'—'} (${h.ptsA||0} pts)\n  Roxo: ${q.op[h.respB]||'—'} (${h.ptsB||0} pts)`;})];const blob=new Blob([l.join('\n')],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='relatorio-quizarena-'+G.cod+'.txt';a.click();toast('📊 Relatório exportado!');}
+
+/* ════════════════════════════════════════════
+   BANCO DE QUESTÕES
+════════════════════════════════════════════ */
+function carregarBanco(){try{const s=localStorage.getItem('qa_banco');if(s){const b=JSON.parse(s);if(Object.keys(b).length>0)return b;}}catch(e){}return JSON.parse(JSON.stringify(BANCO_BASE));}
+function salvarBanco(){try{localStorage.setItem('qa_banco',JSON.stringify(BANCO));}catch(e){}}
+function renderBanco(){const fd=document.getElementById('filt-disc')?.value||'all';let qs=Object.entries(BANCO).flatMap(([d,arr])=>arr.map((q,i)=>({...q,d,_idx:i,_id:d+'_'+i})));if(fd!=='all')qs=qs.filter(q=>q.d===fd);document.getElementById('banco-count').textContent=qs.length+' questões';document.getElementById('banco-lista').innerHTML=qs.length?qs.map(q=>`<div class="qitem"><div class="qi-disc">${SIGLA[q.d]}</div><div class="qi-txt">${q.tx}</div><div class="qi-serie">${q.s}</div><div class="qi-actions"><button class="qi-btn qi-edit" onclick="editarQuestao('${q.d}',${q._idx})">✏</button><button class="qi-btn qi-del" onclick="deletarQuestao('${q.d}',${q._idx})">✕</button></div></div>`).join(''):`<div style="color:var(--text2);padding:2rem;text-align:center">Nenhuma questão.</div>`;}
+function abrirModal(m='new'){modalMode=m;modalCorreta=-1;document.getElementById('modal-title').textContent=m==='new'?'Nova Questão':'Editar Questão';if(m==='new'){document.getElementById('m-txt').value='';['m-op-0','m-op-1','m-op-2','m-op-3'].forEach(id=>document.getElementById(id).value='');}document.querySelectorAll('.opc-letra-btn').forEach(b=>b.classList.remove('correta'));document.getElementById('m-correta-hint').textContent='Nenhuma selecionada';document.getElementById('modal-bg').classList.add('open');}
+function editarQuestao(disc,idx){modalDisc=disc;modalIdx=idx;const q=BANCO[disc][idx];document.getElementById('m-txt').value=q.tx;document.getElementById('m-disc').value=disc;document.getElementById('m-serie').value=q.s;['m-op-0','m-op-1','m-op-2','m-op-3'].forEach((id,i)=>document.getElementById(id).value=q.op[i]||'');marcarCorreta(q.c);abrirModal('edit');}
+function marcarCorreta(idx){modalCorreta=idx;document.querySelectorAll('.opc-letra-btn').forEach((b,i)=>b.classList.toggle('correta',i===idx));document.getElementById('m-correta-hint').textContent='Correta: opção '+'ABCD'[idx];}
+function fecharModal(){document.getElementById('modal-bg').classList.remove('open');}
+function salvarQuestao(){const tx=document.getElementById('m-txt').value.trim();const op=['m-op-0','m-op-1','m-op-2','m-op-3'].map(id=>document.getElementById(id).value.trim());const disc=document.getElementById('m-disc').value;const serie=document.getElementById('m-serie').value;if(!tx){toast('Digite o texto!');return;}if(op.some(o=>!o)){toast('Preencha as 4 opções!');return;}if(modalCorreta<0){toast('Marque a correta!');return;}const q={tx,op,c:modalCorreta,s:serie};if(modalMode==='new'){if(!BANCO[disc])BANCO[disc]=[];BANCO[disc].push(q);toast('✓ Questão adicionada!');}else{BANCO[modalDisc][modalIdx]=q;toast('✓ Questão salva!');}salvarBanco();fecharModal();renderBanco();}
+function deletarQuestao(disc,idx){if(!confirm('Deletar esta questão?'))return;BANCO[disc].splice(idx,1);salvarBanco();renderBanco();toast('Questão removida.');}
+function exportarBanco(){const blob=new Blob([JSON.stringify(BANCO,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='banco-quizarena.json';a.click();toast('⬇ JSON exportado!');}
+
+/* ════════════════════════════════════════════
+   TORNEIO / RANKING
+════════════════════════════════════════════ */
+const BRACKET_DATA=[{a:'E.E. Araruama',b:'CIEP 128',pA:320,pB:280,win:0,st:'done'},{a:'E.M. Saquarema',b:'E.E. Cabo Frio',pA:240,pB:310,win:1,st:'done'},{a:'CIEP Niterói',b:'E.M. Maricá',pA:290,pB:290,win:null,st:'live'},{a:'E.E. Iguaba',b:'E.M. Silva Jardim',pA:0,pB:0,win:null,st:'wait'},{a:'Quartas 1',b:'Quartas 2',pA:0,pB:0,win:null,st:'wait'},{a:'Quartas 3',b:'Quartas 4',pA:0,pB:0,win:null,st:'wait'},{a:'Semi 1',b:'Semi 2',pA:0,pB:0,win:null,st:'wait'}];
+function renderBracket(){
+  function col(lbl,ids){return`<div class="bracket-col"><div class="bracket-col-lbl">${lbl}</div>${ids.map(i=>{const d=BRACKET_DATA[i];const cls=d.st==='live'?' live':'';return`<div class="duelo${cls}"><div class="duelo-time${d.win===0?' win':d.win!==null?' lose':''}">${d.a}<span class="duelo-pts">${d.pA}</span></div><div class="duelo-time${d.win===1?' win':d.win!==null?' lose':''}">${d.b}<span class="duelo-pts">${d.pB}</span></div></div>`;}).join('<div style="height:.75rem"></div>')}</div>`;}
+  document.getElementById('bracket-wrap').innerHTML=col('Quartas',[0,1,2,3])+'<div style="display:flex;align-items:center;color:var(--text3);font-size:1.5rem;padding:0 .5rem">›</div>'+col('Semifinais',[4,5])+'<div style="display:flex;align-items:center;color:var(--text3);font-size:1.5rem;padding:0 .5rem">›</div>'+col('🏆 Final',[6]);
+}
+const RANKING_DATA=[{nm:'E.E. Araruama',cidade:'Araruama/RJ',pts:4820,v:8,d:2,taxa:80},{nm:'CIEP Niterói Norte',cidade:'Niterói/RJ',pts:4610,v:7,d:3,taxa:70},{nm:'E.M. Saquarema',cidade:'Saquarema/RJ',pts:4380,v:7,d:3,taxa:70},{nm:'E.E. Cabo Frio',cidade:'Cabo Frio/RJ',pts:4110,v:6,d:4,taxa:60},{nm:'E.M. Maricá Centro',cidade:'Maricá/RJ',pts:3950,v:5,d:5,taxa:50},{nm:'CIEP 128 Araruama',cidade:'Araruama/RJ',pts:3720,v:4,d:6,taxa:40},{nm:'E.E. Iguaba Grande',cidade:'Iguaba/RJ',pts:3440,v:3,d:7,taxa:30},{nm:'E.M. Silva Jardim',cidade:'Silva Jardim/RJ',pts:2980,v:2,d:8,taxa:20}];
+function renderRanking(){const pos=i=>i===0?'<span class="pos gold">🥇</span>':i===1?'<span class="pos prata">🥈</span>':i===2?'<span class="pos bronze">🥉</span>':`<span class="pos">${i+1}º</span>`;document.getElementById('ranking-table').innerHTML=`<thead><tr><th>#</th><th>Escola</th><th>V</th><th>D</th><th>Taxa</th><th>Pontos</th></tr></thead><tbody>${RANKING_DATA.map((e,i)=>`<tr><td>${pos(i)}</td><td><div class="escola-nm">${e.nm}</div><div class="escola-cidade">${e.cidade}</div></td><td class="win-col">${e.v}</td><td class="lose-col">${e.d}</td><td><div style="display:flex;align-items:center;gap:.625rem"><div class="bar-mini"><div class="bar-mini-fill" style="width:${e.taxa}%"></div></div><span style="font-size:.78rem;color:var(--text2)">${e.taxa}%</span></div></td><td class="pts-col">${e.pts.toLocaleString('pt-BR')}</td></tr>`).join('')}</tbody>`;}
+
+/* ════════════════════════════════════════════
+   PAINEL PROFESSOR
+════════════════════════════════════════════ */
+let feedEvents=[];
+function renderPainelProf(){document.getElementById('prof-sc-a').textContent=G.sc.A||0;document.getElementById('prof-sc-b').textContent=G.sc.B||0;document.getElementById('prof-qi').textContent=(G.qi+1)+'/'+(G.questoes.length||10);document.getElementById('prof-resp').textContent='2/4 alunos';document.getElementById('prof-combo').textContent='×'+G.mxC;const opts=['A','B','C','D'];const pcts=[15,50,20,15];document.getElementById('resp-vivo').innerHTML=opts.map((l,i)=>`<div class="resp-opc"><span style="font-family:var(--fd);font-weight:700;min-width:20px;color:${i===1?'var(--green)':'var(--text2)'}">${l}</span><div class="resp-bar"><div class="resp-bar-f" style="width:${pcts[i]}%;background:${i===1?'var(--green)':'var(--cyan)'}"></div></div><span style="font-size:.75rem;color:var(--text2);min-width:28px;text-align:right">${pcts[i]}%</span></div>`).join('');if(!feedEvents.length)feedEvents=[{msg:'Ana respondeu corretamente',ok:true,t:'há 8s'},{msg:'BotRoxo respondeu errado',ok:false,t:'há 5s'},{msg:'Bruno acertou — Combo ×2!',ok:true,t:'há 2s'}];document.getElementById('prof-feed').innerHTML=feedEvents.map(e=>`<div class="feed-item"><span class="${e.ok?'feed-ok':'feed-er'}">${e.ok?'✓':'✗'}</span><span style="flex:1">${e.msg}</span><span style="color:var(--text3);font-size:.75rem">${e.t}</span></div>`).join('');}
+function pausarJogo(){toast('⏸ Partida pausada para todos.');}
+function pularQuestao(){if(!G.questoes.length){toast('Nenhuma partida ativa.');return;}clearInterval(G.ivT);G.respondeu=true;G.qi++;if(G.qi>=G.questoes.length)G.qi=0;feedEvents.unshift({msg:'Professor pulou para Q'+(G.qi+1),ok:true,t:'agora'});renderPainelProf();toast('⏭ Questão '+(G.qi+1)+' iniciada.');}
+function encerrarJogo(){if(confirm('Encerrar a partida agora?')){clearInterval(G.ivT);mostrarResultado();}}
+
+/* ════════════════════════════════════════════
+   CONFETES
+════════════════════════════════════════════ */
+function confetes(){const c=document.getElementById('ccnv'),ctx=c.getContext('2d');c.width=window.innerWidth;c.height=window.innerHeight;const cl=['#f5c518','#00d9ff','#00e676','#ff3d5a','#a855f7','#fff','#ff7c2a'];const ps=Array.from({length:200},()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.6,vx:(Math.random()-.5)*3.5,vy:1.5+Math.random()*4,rot:Math.random()*360,rv:(Math.random()-.5)*12,w:7+Math.random()*9,h:4+Math.random()*7,col:cl[Math.floor(Math.random()*cl.length)],a:1}));let f=0;(function draw(){if(f++>230){ctx.clearRect(0,0,c.width,c.height);return;}ctx.clearRect(0,0,c.width,c.height);ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.rot+=p.rv;p.vy+=.09;if(f>130)p.a=Math.max(0,p.a-.014);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);ctx.fillStyle=p.col;ctx.globalAlpha=p.a;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();});requestAnimationFrame(draw);})();}
+
+/* ════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('cod-entrada')?.addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+  document.getElementById('modal-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+  console.log('%cQuizArena — EDUC Games','font-size:15px;font-weight:bold;color:#f5c518;background:#07091a;padding:8px 16px;border-radius:4px');
+  console.log('%cAcesso professor: triple-click no logo ou ⚙ no rodapé','color:#9298b0;padding:4px 16px');
+});
+</script>
+</body>
+</html>
